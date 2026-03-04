@@ -67,9 +67,48 @@ export const initialDevices: Device[] = [
     powerConsumption: 100,
     usageHoursToday: 0,
     status: 'off',
+  },
+  {
+    id: 'tv-1',
+    name: 'Smart TV',
+    icon: Lightbulb,
+    powerConsumption: 120,
+    usageHoursToday: 3.2,
+    status: 'on',
+  },
+  {
+    id: 'water-heater-1',
+    name: 'Water Heater',
+    icon: AirVent,
+    powerConsumption: 0,
+    usageHoursToday: 0.8,
+    status: 'off',
+  },
+  {
+    id: 'router-1',
+    name: 'Wi-Fi Router',
+    icon: Wind,
+    powerConsumption: 15,
+    usageHoursToday: 24,
+    status: 'on',
+  },
+  {
+    id: 'exhaust-1',
+    name: 'Exhaust Fan',
+    icon: Wind,
+    powerConsumption: 45,
+    usageHoursToday: 2.0,
+    status: 'on',
+  },
+  {
+    id: 'desktop-1',
+    name: 'Desktop PC',
+    icon: Microwave,
+    powerConsumption: 0,
+    usageHoursToday: 0,
+    status: 'off',
   }
 ];
-
 export const puneTariffs: Tariff = {
   high: 11.82, // Sample peak rate in ₹/kWh
   low: 5.86,   // Sample off-peak rate in ₹/kWh

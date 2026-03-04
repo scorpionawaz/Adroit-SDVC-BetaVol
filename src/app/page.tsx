@@ -1,9 +1,9 @@
-import { DashboardClient } from "@/app/components/dashboard-client";
+import { MainClient } from "@/app/components/main-client";
 
 export default function Home() {
   return (
     <main>
-      <DashboardClient />
+      <MainClient />
     </main>
   );
 }

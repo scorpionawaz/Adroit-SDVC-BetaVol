@@ -24,12 +24,12 @@ export function DashboardHeader() {
         <div className="p-2 bg-primary/10 rounded-lg">
            <Zap className="w-6 h-6 text-primary" />
         </div>
-        <h1 className="text-xl font-bold text-foreground">Pune Home Monitor</h1>
+        <h1 className="text-xl font-bold text-foreground">BetaVolt Monitor</h1>
       </div>
       <div className="w-full sm:w-auto grid grid-cols-2 sm:flex sm:items-center sm:gap-x-6 gap-y-2 text-sm text-muted-foreground">
          <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4"/>
-            <span>Pune</span>
+            <span>BetaVolt Network</span>
          </div>
          <div className="flex items-center gap-2">
             <User className="h-4 w-4"/>

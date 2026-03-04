@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Activity, Search, User, ShieldAlert, Receipt, Settings, Bot,
   Zap, CreditCard, AlertCircle, Printer, Ban, TrendingUp,
   ServerOff, AlertOctagon, Clock, CheckCircle2, AlertTriangle,
   MoreVertical, MessageSquare, ZapOff, Filter, BarChart3,
   Terminal, Cpu, HardDrive, Wifi, DollarSign, ArrowUpRight, ArrowDownRight,
-  Users, MapPin
+  Users, MapPin, LogOut
 } from "lucide-react";
 
 // --- MOCK DATA ---
@@ -39,6 +39,32 @@ export default function IntellismartMasterDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [consumerData, setConsumerData] = useState<any>(null);
+  const [isAuthed, setIsAuthed] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("instinct_user_role");
+    if (stored !== "admin") {
+      window.location.href = "/";
+      return;
+    }
+    setIsAuthed(true);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("instinct_user_role");
+    window.location.href = "/";
+  };
+
+  if (!isAuthed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-slate-400 text-sm font-medium">Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   // --- TAB RENDERING LOGIC ---
 
@@ -576,6 +602,11 @@ export default function IntellismartMasterDashboard() {
           <NavBtn icon={<Settings />} label="Global Tariffs" id="tariffs" current={activeTab} set={setActiveTab} />
           <NavBtn icon={<ServerOff />} label="Agent Infrastructure" id="agent" current={activeTab} set={setActiveTab} />
         </nav>
+        <div className="px-3 py-4 border-t border-slate-800">
+          <button onClick={handleLogout} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all text-sm font-medium">
+            <LogOut className="w-5 h-5" /><span>Log Out</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main Content Area */}

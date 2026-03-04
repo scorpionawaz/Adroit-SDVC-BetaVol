@@ -12,7 +12,7 @@ interface Message {
   isUser: boolean;
 }
 
-type SupportView = "menu" | "chat" | "call";
+type SupportView = "call";
 
 interface ChatbotWidgetProps {
   onRegisterWSSend?: (sendFn: (msg: string) => boolean) => void;
@@ -22,7 +22,8 @@ interface ChatbotWidgetProps {
 export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal }: ChatbotWidgetProps) {
   // --- UI STATE ---
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [view, setView] = useState<SupportView>("menu");
+  const [view, setView] = useState<SupportView>("call");
+  const [hasUnread, setHasUnread] = useState(false); // Demo notification badge
 
   // Keep onDeviceSignal in a ref so the WS onmessage handler always has the latest version
   const onDeviceSignalRef = useRef(onDeviceSignal);
@@ -30,10 +31,7 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal }: ChatbotWidge
 
   // --- CHAT STATE ---
   const [inputValue, setInputValue] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    { text: "Hi 👋 How can I help you?", isUser: false },
-  ]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const callMessagesEndRef = useRef<HTMLDivElement>(null);
 
   // --- CALL STATE ---
@@ -300,12 +298,8 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal }: ChatbotWidge
       };
 
       webSocket.current.onclose = () => {
-        setConnectionStatus("Ended");
-        playConnectedSound();
-        setTimeout(() => {
-          setIsChatOpen(false);
-          setView("menu");
-        }, 2000);
+        setConnectionStatus("Disconnected");
+        console.log("[chatbot-ws] WebSocket closed.");
       };
 
       webSocket.current.onerror = (err) => {
@@ -321,12 +315,8 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal }: ChatbotWidge
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sendVideoFrame, stopCall]);
 
-  useEffect(() => {
-    if (view === "call") startCall();
-    return () => stopCall();
-  }, [view, startCall, stopCall]);
 
-  // --- REGISTER WS SEND with parent (for tariff alert injection) ---
+  // --- REGISTER WS SEND with parent ---
   // Returns true if WS was open and message was sent, false otherwise
   const wsSendFn = useCallback((msg: string): boolean => {
     if (webSocket.current?.readyState === WebSocket.OPEN) {
@@ -349,34 +339,24 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal }: ChatbotWidge
     const txtToSend = inputValue;
     setInputValue("");
 
-    if (view === "call") {
-      if (webSocket.current?.readyState === WebSocket.OPEN) {
-        console.log("[chatbot-ws] USER text sent:", txtToSend);
-        webSocket.current.send(JSON.stringify({ type: "text", data: txtToSend }));
-      }
-    } else {
-      console.log("[chatbot-chat] USER message (live chat):", txtToSend);
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          { text: "Our team will contact you shortly 😊", isUser: false },
-        ]);
-      }, 800);
+    if (webSocket.current?.readyState === WebSocket.OPEN) {
+      console.log("[chatbot-ws] USER text sent:", txtToSend);
+      webSocket.current.send(JSON.stringify({ type: "text", data: txtToSend }));
     }
   };
 
+
+  // Open the modal AND start the call — only on explicit user click
   const openSupport = () => {
-    setView("menu");
+    setView("call");
     setIsChatOpen(true);
+    setHasUnread(false);
+    startCall();
   };
   const closeModal = () => {
     setIsChatOpen(false);
     stopCall();
   };
-
-  useEffect(() => {
-    if (view === "chat") messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, view]);
 
   useEffect(() => {
     if (view === "call") callMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -388,302 +368,83 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal }: ChatbotWidge
       {!isChatOpen && (
         <button
           onClick={openSupport}
-          aria-label="Open support chat"
-          style={{
-            position: "fixed",
-            bottom: "28px",
-            right: "28px",
-            zIndex: 1000,
-            width: "60px",
-            height: "60px",
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #e91e63 0%, #c2185b 100%)",
-            border: "none",
-            cursor: "pointer",
-            boxShadow: "0 4px 20px rgba(233,30,99,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "26px",
-            transition: "transform 0.2s ease, box-shadow 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.1)";
-            (e.currentTarget as HTMLButtonElement).style.boxShadow =
-              "0 6px 28px rgba(233,30,99,0.6)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
-            (e.currentTarget as HTMLButtonElement).style.boxShadow =
-              "0 4px 20px rgba(233,30,99,0.45)";
-          }}
+          aria-label="Open AI voice assistant"
+          className="fixed bottom-7 right-7 z-[9999] w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all hover:scale-105 hover:shadow-xl"
         >
-          💬
+          {hasUnread && (
+            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-background">
+              1
+            </span>
+          )}
+          {/* Microphone SVG */}
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" x2="12" y1="19" y2="22"/>
+          </svg>
         </button>
       )}
 
       {/* MODAL */}
       {isChatOpen && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,.4)",
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "flex-end",
-            padding: "20px",
-            zIndex: 1000,
-          }}
+          className="fixed inset-0 flex items-end justify-end p-5 z-[9999]"
           onClick={(e) => e.target === e.currentTarget && closeModal()}
         >
           <div
-            style={{
-              width: "340px",
-              height: "550px",
-              background: "#fff",
-              borderRadius: "28px",
-              boxShadow: "0 10px 30px rgba(0,0,0,.3)",
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-              animation: "slideUp 0.25s ease",
-            }}
+            className="w-[340px] h-[550px] bg-background rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom border"
           >
             {/* HEADER */}
-            <div
-              style={{
-                background: "linear-gradient(135deg, #e91e63 0%, #c2185b 100%)",
-                color: "#fff",
-                padding: "16px 20px",
-                fontWeight: 600,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                fontSize: "15px",
-              }}
-            >
-              <span>
-                {view === "menu" ? "🤖 AI Support" : view === "call" ? "🤖 AI Voice Call" : "💬 Live Chat"}
-              </span>
+            <div className="bg-primary text-primary-foreground px-5 py-4 font-semibold flex justify-between items-center text-[15px]">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🤖</span>
+                <span>AI Voice Agent</span>
+              </div>
               <button
                 onClick={closeModal}
-                style={{
-                  background: "rgba(255,255,255,0.2)",
-                  border: "none",
-                  color: "#fff",
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "50%",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
+                className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground w-7 h-7 rounded-full flex items-center justify-center transition-colors"
               >
                 ✕
               </button>
             </div>
 
-            {/* VIEW 1: MENU */}
-            {view === "menu" && (
-              <div
-                style={{
-                  flex: 1,
-                  padding: "24px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  gap: "16px",
-                  background: "#f9f9f9",
-                }}
-              >
-                <p style={{ textAlign: "center", color: "#666", fontSize: "14px", marginBottom: "8px" }}>
-                  How would you like to connect?
-                </p>
-                {/* Voice Call Button */}
-                <button
-                  onClick={() => setView("call")}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "14px",
-                    padding: "16px",
-                    background: "#fff",
-                    border: "1px solid #eee",
-                    borderRadius: "16px",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                    transition: "box-shadow 0.2s",
-                    textAlign: "left",
-                  }}
-                  onMouseEnter={(e) =>
-                    ((e.currentTarget as HTMLButtonElement).style.boxShadow =
-                      "0 4px 16px rgba(233,30,99,0.15)")
-                  }
-                  onMouseLeave={(e) =>
-                    ((e.currentTarget as HTMLButtonElement).style.boxShadow =
-                      "0 2px 8px rgba(0,0,0,0.06)")
-                  }
-                >
-                  <div
-                    style={{
-                      width: "44px",
-                      height: "44px",
-                      borderRadius: "12px",
-                      background: "#fce4ec",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "22px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    📞
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "14px", color: "#1a1a1a" }}>
-                      Voice Call
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#888", marginTop: "2px" }}>
-                      Talk to AI assistant
-                    </div>
-                  </div>
-                </button>
-
-                {/* Live Chat Button */}
-                <button
-                  onClick={() => setView("chat")}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "14px",
-                    padding: "16px",
-                    background: "#fff",
-                    border: "1px solid #eee",
-                    borderRadius: "16px",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                    transition: "box-shadow 0.2s",
-                    textAlign: "left",
-                  }}
-                  onMouseEnter={(e) =>
-                    ((e.currentTarget as HTMLButtonElement).style.boxShadow =
-                      "0 4px 16px rgba(3,155,229,0.15)")
-                  }
-                  onMouseLeave={(e) =>
-                    ((e.currentTarget as HTMLButtonElement).style.boxShadow =
-                      "0 2px 8px rgba(0,0,0,0.06)")
-                  }
-                >
-                  <div
-                    style={{
-                      width: "44px",
-                      height: "44px",
-                      borderRadius: "12px",
-                      background: "#e1f5fe",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "22px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    💬
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "14px", color: "#1a1a1a" }}>
-                      Live Chat
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#888", marginTop: "2px" }}>
-                      Message support team
-                    </div>
-                  </div>
-                </button>
-              </div>
-            )}
-
             {/* VIEW 2: CALL */}
             {view === "call" && (
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  background: "linear-gradient(160deg, #f891f6 0%, #e74c80 100%)",
-                  position: "relative",
-                  color: "white",
-                  overflow: "hidden",
-                }}
-              >
+              <div className="flex-1 flex flex-col relative text-foreground overflow-hidden bg-card">
                 <video ref={videoRef} playsInline muted style={{ display: "none" }} />
                 <canvas ref={canvasRef} style={{ display: "none" }} />
 
                 {/* AI Visualizer */}
-                <div
-                  style={{
-                    flex: "0 0 auto",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    paddingTop: "20px",
-                  }}
-                >
+                <div className="flex-none flex flex-col items-center pt-8 pb-4">
                   <div
+                    className="w-[90px] h-[90px] rounded-full flex items-center justify-center text-4xl transition-all duration-300"
                     style={{
-                      width: "90px",
-                      height: "90px",
-                      borderRadius: "50%",
-                      background: isAiSpeaking
-                        ? "rgba(255,255,255,0.35)"
-                        : "rgba(255,255,255,0.2)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "36px",
+                      background: isAiSpeaking ? "hsl(var(--primary)/0.2)" : "hsl(var(--primary)/0.1)",
                       boxShadow: isAiSpeaking
-                        ? "0 0 0 12px rgba(255,255,255,0.15), 0 0 0 24px rgba(255,255,255,0.07)"
-                        : "0 0 0 8px rgba(255,255,255,0.1)",
-                      transition: "all 0.4s ease",
+                        ? "0 0 0 12px hsl(var(--primary)/0.15), 0 0 0 24px hsl(var(--primary)/0.05)"
+                        : "0 0 0 8px hsl(var(--primary)/0.05)",
                     }}
                   >
                     🤖
                   </div>
-                  <h3 style={{ marginTop: "12px", fontWeight: 600, fontSize: "17px" }}>
-                    AI Assistant
+                  <h3 className="mt-6 font-semibold text-lg text-foreground">
+                    BetaVolt Assistant
                   </h3>
-                  <p style={{ opacity: 0.8, fontSize: "12px", marginTop: "2px" }}>
+                  <p className="opacity-70 text-sm mt-1">
                     {connectionStatus}
                   </p>
                 </div>
 
                 {/* In-call chat messages */}
-                <div
-                  style={{
-                    flex: 1,
-                    overflowY: "auto",
-                    padding: "10px 14px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "8px",
-                    background: "rgba(0,0,0,0.1)",
-                    margin: "10px 0",
-                  }}
-                >
+                <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-2">
                   {messages.map((msg, index) => (
                     <div
                       key={index}
-                      style={{
-                        alignSelf: msg.isUser ? "flex-end" : "flex-start",
-                        background: msg.isUser ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.5)",
-                        color: msg.isUser ? "#e91e63" : "#fff",
-                        padding: "8px 12px",
-                        borderRadius: "12px",
-                        fontSize: "13px",
-                        maxWidth: "85%",
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                      }}
+                      className={`px-3 py-2 rounded-xl text-[13px] max-w-[85%] shadow-sm ${
+                        msg.isUser
+                          ? "self-end bg-primary text-primary-foreground ml-4"
+                          : "self-start bg-muted text-muted-foreground mr-4"
+                      }`}
                     >
                       {msg.text}
                     </div>
@@ -692,72 +453,31 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal }: ChatbotWidge
                 </div>
 
                 {/* Input + End Call */}
-                <div
-                  style={{ padding: "0 14px 20px 14px", display: "flex", flexDirection: "column", gap: "12px" }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      background: "rgba(255,255,255,0.2)",
-                      borderRadius: "20px",
-                      padding: "4px 4px 4px 14px",
-                      backdropFilter: "blur(5px)",
-                    }}
-                  >
+                <div className="p-4 flex flex-col gap-3">
+                  <div className="flex bg-muted rounded-full p-1 pl-4 items-center border">
                     <input
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                      placeholder="Type to AI..."
-                      style={{
-                        flex: 1,
-                        background: "transparent",
-                        border: "none",
-                        outline: "none",
-                        color: "#fff",
-                        fontSize: "14px",
-                      }}
+                      placeholder="Type a message..."
+                      className="flex-1 bg-transparent border-none outline-none text-foreground text-[14px] placeholder:text-muted-foreground"
                     />
                     <button
                       onClick={handleSend}
-                      style={{
-                        background: "#fff",
-                        color: "#e91e63",
-                        border: "none",
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontWeight: "bold",
-                        fontSize: "16px",
-                      }}
+                      className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center font-bold transition-transform hover:scale-105"
                     >
                       ↑
                     </button>
                   </div>
 
                   {/* End Call */}
-                  <div style={{ display: "flex", justifyContent: "center" }}>
+                  <div className="flex justify-center mt-2">
                     <button
                       onClick={() => {
                         stopCall();
-                        setView("menu");
+                        setView("call"); // Not switching view anymore, just stays in call (ended)
                       }}
-                      style={{
-                        width: "56px",
-                        height: "56px",
-                        borderRadius: "50%",
-                        background: "#ff1744",
-                        border: "none",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        boxShadow: "0 4px 16px rgba(255,23,68,0.5)",
-                      }}
+                      className="w-14 h-14 rounded-full bg-destructive border-none cursor-pointer flex items-center justify-center shadow-md hover:scale-105 transition-transform"
                     >
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
                         <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />
@@ -766,80 +486,6 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal }: ChatbotWidge
                   </div>
                 </div>
               </div>
-            )}
-
-            {/* VIEW 3: CHAT */}
-            {view === "chat" && (
-              <>
-                <div
-                  style={{
-                    flex: 1,
-                    padding: "14px",
-                    overflowY: "auto",
-                    background: "#f7f7f7",
-                    fontSize: "14px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "8px",
-                  }}
-                >
-                  {messages.map((msg, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        background: msg.isUser ? "#e91e63" : "#fff",
-                        color: msg.isUser ? "#fff" : "#000",
-                        padding: "10px 14px",
-                        borderRadius: "12px",
-                        width: "max-content",
-                        maxWidth: "80%",
-                        marginLeft: msg.isUser ? "auto" : "0",
-                        boxShadow: !msg.isUser ? "0 1px 3px rgba(0,0,0,0.05)" : "none",
-                      }}
-                    >
-                      {msg.text}
-                    </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    borderTop: "1px solid #eee",
-                    padding: "10px",
-                    gap: "8px",
-                  }}
-                >
-                  <input
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                    placeholder="Type a message..."
-                    style={{
-                      flex: 1,
-                      border: "1px solid #eee",
-                      borderRadius: "20px",
-                      padding: "10px 14px",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                  />
-                  <button
-                    onClick={handleSend}
-                    style={{
-                      background: "#e91e63",
-                      color: "#fff",
-                      border: "none",
-                      padding: "10px 18px",
-                      borderRadius: "20px",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Send
-                  </button>
-                </div>
-              </>
             )}
           </div>
         </div>
