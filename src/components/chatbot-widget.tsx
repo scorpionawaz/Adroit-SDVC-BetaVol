@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // --- CONFIGURATION ---
-const WS_URL = "ws://10.10.12.174:8080/BetaVoltHome/";
+const WS_URL = "ws://localhost:8080/BetaVoltHome/";
 const USER_AUDIO_SAMPLE_RATE = 16000;
 const AI_SAMPLE_RATE = 24000;
 
@@ -218,6 +218,10 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal }: ChatbotWidge
       playRingingTone();
       ringingInterval.current = setInterval(playRingingTone, 2000);
 
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Browser does not support media devices or is not in a secure context");
+      }
+
       mediaStream.current = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480, facingMode: "user" },
         audio: { echoCancellation: true, noiseSuppression: true, sampleRate: USER_AUDIO_SAMPLE_RATE },
@@ -309,7 +313,11 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal }: ChatbotWidge
       };
     } catch (err) {
       console.error("startCall failed:", err);
-      setConnectionStatus("Failed");
+      if (err instanceof Error && (err.message.includes("mediaDevices") || err.message.includes("secure context"))) {
+        setConnectionStatus("Media Context Error");
+      } else {
+        setConnectionStatus("Failed");
+      }
       if (ringingInterval.current) clearInterval(ringingInterval.current);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

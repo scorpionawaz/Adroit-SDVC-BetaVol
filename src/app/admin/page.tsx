@@ -44,8 +44,54 @@ export default function IntellismartMasterDashboard() {
   const [tariffReason, setTariffReason] = useState("");
   const [tariffUser, setTariffUser] = useState("admin");
   const [tariffStatus, setTariffStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [slotTariffs, setSlotTariffs] = useState({ off_peak: 4.50, standard: 6.80, peak: 11.20 });
+  const [slotStatus, setSlotStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [ticketsData, setTicketsData] = useState<any[]>([]);
+  const [billingStats, setBillingStats] = useState({ total_mtd: "₹0 Cr", pending_settlements: "₹0 Cr", failed_24h: 0 });
+  const [billsData, setBillsData] = useState<any[]>([]);
 
   useEffect(() => {
+    // load slots
+    fetch("http://localhost:8080/tariff/slots")
+      .then(res => res.json())
+      .then(data => setSlotTariffs({ off_peak: data.off_peak, standard: data.standard, peak: data.peak }))
+      .catch(console.error);
+      
+    // load support tickets for admin
+    fetch("http://localhost:8080/support-tickets")
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setTicketsData(data);
+        } else {
+          console.error("Support tickets not an array:", data);
+          setTicketsData([]);
+        }
+      })
+      .catch((e) => {
+        console.error(e);
+        setTicketsData([]);
+      });
+
+    // load billing stats
+    fetch("http://localhost:8080/admin/billing/stats")
+      .then(res => res.json())
+      .then(data => setBillingStats(data))
+      .catch(console.error);
+
+    // load transactions (now bills)
+    fetch("http://localhost:8080/admin/billing/bills")
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setBillsData(data);
+        } else {
+          setBillsData([]);
+        }
+      })
+      .catch(console.error);
+
     const stored = localStorage.getItem("instinct_user_role");
     if (stored !== "admin") {
       window.location.href = "/";
@@ -124,59 +170,102 @@ export default function IntellismartMasterDashboard() {
       
       {/* Search Bar */}
       <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-        <form onSubmit={(e) => {
+        <form onSubmit={async (e) => {
           e.preventDefault();
-          if (searchQuery) {
-            // Richer Mock Data Structure
-            setConsumerData({
-              id: searchQuery.toUpperCase(), 
-              meterId: "MTR-8992-AXV",
-              name: "Rajesh Kumar", 
-              phone: "+91 98765 43210", 
-              address: "Sector 4, Block B, Tech Park Road, Pune", 
-              type: "Smart Prepaid User", 
-              status: "Active",
-              connectionDate: "12 Aug 2024",
-              
-              // Usage & Telemetry
-              liveUsage: "1.42 kW", 
-              dailyAvg: "8.5 kWh", 
-              dailyCost: "₹ 58.40",
-              monthlyTotal: "145 kWh", 
-              predictedMonthly: "280 kWh", 
-              
-              // Financials
-              prepaidBalance: "₹ 1,450.00", 
-              outstandingDues: "₹ 840.00",
-              walletStatus: "Low Balance",
-              
-              // Tables Data
-              pendingBills: [
-                { month: "Feb 2026", amount: "₹ 840.00", dueDate: "05 Mar 2026", type: "Postpaid Diff" }
-              ],
-              complaints: [
-                { id: "INC-9093", date: "03 Mar 2026", issue: "Meter Sync Delay", status: "Open", priority: "High" },
-                { id: "INC-8821", date: "15 Feb 2026", issue: "Agent False Alert", status: "In Progress", priority: "Low" }
-              ],
-              
-              // Agent & Infrastructure
-              agentStatus: true,
-              agentMode: "Semi-Automatic"
-            });
+          if (!searchQuery) return;
+          setSearchLoading(true);
+          try {
+            const res = await fetch(`http://localhost:8080/customers/search?q=${searchQuery}`);
+            const data = await res.json();
+            console.log("Search Result:", data);
+            if (data) {
+                // Calculate live usage from devices
+                let totalUsageWatts = 0;
+                if (data.devices) {
+                    data.devices.forEach((d: any) => {
+                        if (d.status === "on") totalUsageWatts += d.power_consumption_watts;
+                    });
+                }
+                const liveUsageKW = (totalUsageWatts / 1000).toFixed(2);
+                
+                // Map Bills
+                const mappedBills = (data.bills || []).map((b: any) => ({
+                    month: b.month,
+                    type: "Monthly Bill",
+                    dueDate: b.due_date ? b.due_date.split("T")[0] : "N/A",
+                    amount: b.amount,
+                    status: b.status
+                }));
+
+                const unpaidBills = (data.bills || []).filter((b: any) => b.status === "Unpaid" || b.status === "Overdue");
+                let totalOutstanding = 0;
+                unpaidBills.forEach((b: any) => {
+                    const val = parseFloat(b.amount.replace('₹', '').replace(',', ''));
+                    totalOutstanding += val;
+                });
+                
+                // Map Support Tickets -> Complaints array
+                const mappedComplaints = (data.support_tickets || []).map((t: any) => ({
+                    id: t._id.slice(-6).toUpperCase(), 
+                    date: t.created_at ? t.created_at.split("T")[0] : "N/A",
+                    issue: t.issue_category,
+                    status: t.status === "RESOLVED" ? "Resolved" : "Open",
+                    priority: t.priority
+                }));
+                
+                setConsumerData({
+                  id: data.customer_id, 
+                  meterId: "MTR-SYNCED",
+                  name: data.full_name, 
+                  phone: data.contact?.phone || "N/A", 
+                  address: data.address || "N/A", 
+                  type: data.role === "normal_user" ? "Standard User" : data.role, 
+                  status: "Active",
+                  connectionDate: "N/A",
+                  
+                  // Usage & Telemetry
+                  liveUsage: `${liveUsageKW} kW`, 
+                  dailyAvg: "N/A kWh", 
+                  dailyCost: "N/A",
+                  monthlyTotal: "N/A kWh", 
+                  predictedMonthly: "N/A kWh", 
+                  
+                  // Financials
+                  prepaidBalance: `₹ ${data.wallet_balance || 0}`, 
+                  outstandingDues: `₹ ${totalOutstanding.toLocaleString('en-IN')}`,
+                  walletStatus: data.wallet_balance < 500 ? "Low Balance" : "Healthy",
+                  
+                  // Tables Data
+                  pendingBills: mappedBills,
+                  complaints: mappedComplaints,
+                  
+                  // Agent & Infrastructure
+                  agentStatus: true,
+                  agentMode: "Semi-Automatic"
+                });
+            } else {
+                alert("Customer not found.");
+                setConsumerData(null);
+            }
+          } catch (e) {
+            console.error(e);
+            alert("Error fetching customer data.");
+          } finally {
+            setSearchLoading(false);
           }
         }} className="flex space-x-4">
           <div className="flex-1 relative">
             <Search className="absolute left-4 top-3.5 text-slate-400 w-5 h-5" />
             <input 
               type="text" 
-              placeholder="Enter Consumer ID (e.g., UID-10294) or Meter Number..." 
+              placeholder="Enter Consumer ID, Name, or Phone..." 
               className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-sm shadow-inner" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)} 
             />
           </div>
-          <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-lg font-bold shadow-md transition flex items-center">
-            <Search className="w-4 h-4 mr-2" /> Retrieve Profile
+          <button type="submit" disabled={searchLoading} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-8 py-3 rounded-lg font-bold shadow-md transition flex items-center">
+            {searchLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />} Retrieve Profile
           </button>
         </form>
       </div>
@@ -357,10 +446,10 @@ export default function IntellismartMasterDashboard() {
                         <input type="checkbox" defaultChecked={consumerData.agentStatus} className="sr-only peer" />
                         <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                       </label>
-                      <select className="text-[10px] font-bold border rounded p-1 outline-none text-slate-600 bg-slate-50">
-                        <option>Fully-Automatic</option>
-                        <option selected>Semi-Automatic</option>
-                        <option>Manual Only</option>
+                      <select defaultValue="Semi-Automatic" className="text-[10px] font-bold border rounded p-1 outline-none text-slate-600 bg-slate-50">
+                        <option value="Fully-Automatic">Fully-Automatic</option>
+                        <option value="Semi-Automatic">Semi-Automatic</option>
+                        <option value="Manual Only">Manual Only</option>
                       </select>
                     </div>
                   </div>
@@ -439,23 +528,29 @@ export default function IntellismartMasterDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {MOCK_INCIDENTS.map((inc) => (
-                <tr key={inc.id} className="hover:bg-slate-50 group">
-                  <td className="px-4 py-3"><span className="font-mono font-bold text-blue-600">{inc.id}</span></td>
-                  <td className="px-4 py-3"><div className="font-medium">{inc.consumerName}</div><div className="text-xs text-slate-500 font-mono">{inc.consumerId}</div></td>
-                  <td className="px-4 py-3"><div className="font-medium">{inc.category}</div><div className="text-[10px] text-slate-500">{inc.subCategory}</div></td>
-                  <td className="px-4 py-3">
-                    <span className={`font-mono font-bold ${inc.criticalityScore >= 8 ? 'text-red-600' : 'text-orange-500'}`}>{inc.criticalityScore}</span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs">
-                    {inc.slaStatus === 'Breached' ? <span className="text-red-600 flex items-center animate-pulse"><Clock className="w-3 h-3 mr-1"/> {inc.timeRemaining}</span> : <span className="text-slate-600">{inc.timeRemaining}</span>}
-                  </td>
-                  <td className="px-4 py-3 text-xs font-bold uppercase text-slate-600">{inc.status}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button className="text-slate-400 hover:text-blue-600 p-1"><MessageSquare className="w-4 h-4" /></button>
-                  </td>
-                </tr>
-              ))}
+              {Array.isArray(ticketsData) && ticketsData.map((t, idx) => {
+                const ticketId = t._id ? t._id.toString() : `TKT-${idx}`;
+                return (
+                  <tr key={ticketId} className="hover:bg-slate-50 group">
+                    <td className="px-4 py-3"><span className="font-mono font-bold text-blue-600">INC-{ticketId.slice(-6).toUpperCase()}</span></td>
+                    <td className="px-4 py-3"><div className="font-medium">{t.customer_name || "Unknown"}</div><div className="text-xs text-slate-500 font-mono">{t.customer_id}</div></td>
+                    <td className="px-4 py-3"><div className="font-medium">{t.issue_category}</div><div className="text-[10px] text-slate-500 whitespace-pre-wrap max-w-40 truncate">{t.description}</div></td>
+                    <td className="px-4 py-3">
+                      <span className={`font-mono font-bold ${t.priority === 'HIGH' ? 'text-red-600' : 'text-orange-500'}`}>{t.priority}</span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                      {t.created_at ? t.created_at.split("T")[0] : "N/A"}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-bold uppercase text-slate-600">{t.status}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button className="text-slate-400 hover:text-blue-600 p-1"><MessageSquare className="w-4 h-4" /></button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {ticketsData.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">No support tickets found.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -468,41 +563,44 @@ export default function IntellismartMasterDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-emerald-900 text-white p-6 rounded-xl shadow-sm border border-emerald-800">
           <p className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-2">Total Collections (MTD)</p>
-          <p className="text-4xl font-bold font-mono">₹42.8 Cr</p>
-          <p className="text-xs text-emerald-300 mt-2 flex items-center"><TrendingUp className="w-3 h-3 mr-1"/> +14.2% vs last month</p>
+          <p className="text-4xl font-bold font-mono">{billingStats.total_mtd}</p>
+          <p className="text-xs text-emerald-300 mt-2 flex items-center"><TrendingUp className="w-3 h-3 mr-1"/> Real-time collection</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-           <p className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Pending Settlements</p>
-           <p className="text-3xl font-bold font-mono text-slate-800">₹1.2 Cr</p>
+           <p className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Outstanding Amount</p>
+           <p className="text-3xl font-bold font-mono text-slate-800">{billingStats.pending_settlements}</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-red-200">
-           <p className="text-red-500 text-sm font-bold uppercase tracking-wider mb-2">Failed Transactions (24h)</p>
-           <p className="text-3xl font-bold font-mono text-red-600">342</p>
+           <p className="text-red-500 text-sm font-bold uppercase tracking-wider mb-2">Overdue Bills</p>
+           <p className="text-3xl font-bold font-mono text-red-600">{billingStats.failed_24h}</p>
         </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
         <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
-          <h3 className="font-bold text-slate-800">Recent Transactions</h3>
+          <h3 className="font-bold text-slate-800">Consumer Invoices & Bills</h3>
           <button className="text-sm font-bold text-blue-600 hover:underline">Export CSV</button>
         </div>
         <table className="w-full text-left text-sm whitespace-nowrap">
           <thead className="bg-slate-100 text-slate-500 text-xs uppercase font-semibold">
-            <tr><th className="px-4 py-3">TRX ID</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">User</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Gateway</th><th className="px-4 py-3">Status</th></tr>
+            <tr><th className="px-4 py-3">Bill ID</th><th className="px-4 py-3">Month</th><th className="px-4 py-3">Customer</th><th className="px-4 py-3">Usage (kWh)</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {MOCK_TRANSACTIONS.map((trx, i) => (
-              <tr key={i} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-mono font-medium text-slate-700">{trx.id}</td>
-                <td className="px-4 py-3 text-slate-500 text-xs">{trx.date}</td>
-                <td className="px-4 py-3 font-medium">{trx.user}</td>
-                <td className="px-4 py-3 font-mono font-bold">{trx.amount}</td>
-                <td className="px-4 py-3 text-xs">{trx.gateway} ({trx.method})</td>
+            {Array.isArray(billsData) && billsData.map((bill, i) => (
+              <tr key={bill._id || i} className="hover:bg-slate-50">
+                <td className="px-4 py-3 font-mono font-medium text-slate-700">{bill.bill_id}</td>
+                <td className="px-4 py-3 text-slate-500 text-xs">{bill.month}</td>
+                <td className="px-4 py-3 font-medium">{bill.customer_name}</td>
+                <td className="px-4 py-3 font-mono">{bill.usage_kwh}</td>
+                <td className="px-4 py-3 font-mono font-bold">{bill.amount}</td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${trx.status === 'Settled' ? 'bg-emerald-100 text-emerald-800' : trx.status === 'Failed' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{trx.status}</span>
+                  <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${bill.status === 'Paid' ? 'bg-emerald-100 text-emerald-800' : bill.status === 'Overdue' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{bill.status}</span>
                 </td>
               </tr>
             ))}
+            {billsData.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">No bills recorded.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -515,7 +613,7 @@ export default function IntellismartMasterDashboard() {
       if (!tariffRate || isNaN(rate) || !tariffReason.trim()) return;
       setTariffStatus("loading");
       try {
-        const res = await fetch("http://10.10.12.174:8080/tariff", {
+        const res = await fetch("http://localhost:8080/tariff", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ rate, reason: tariffReason, user: tariffUser }),
@@ -609,13 +707,34 @@ export default function IntellismartMasterDashboard() {
             <h3 className="text-xl font-bold text-slate-800">Global TOU (Time of Use) Pricing</h3>
             <p className="text-sm text-slate-500">Configure real-time grid pricing parameters for automated agents.</p>
           </div>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow transition">Deploy to Grid</button>
+          <button 
+            onClick={async () => {
+              setSlotStatus("loading");
+              try {
+                const res = await fetch("http://localhost:8080/tariff/slots", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ ...slotTariffs, user: "admin" })
+                });
+                if (!res.ok) throw new Error("Failed");
+                setSlotStatus("success");
+                setTimeout(() => setSlotStatus("idle"), 3000);
+              } catch (e) {
+                setSlotStatus("error");
+                setTimeout(() => setSlotStatus("idle"), 3000);
+              }
+            }}
+            disabled={slotStatus === "loading"}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow transition flex items-center gap-2 disabled:opacity-50"
+          >
+            {slotStatus === "loading" ? "Deploying..." : (slotStatus === "success" ? "Deployed ✓" : "Deploy to Grid")}
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <TariffCard tier="Off-Peak (Base)" time="23:00 - 06:00" rate="4.50" color="emerald" />
-          <TariffCard tier="Standard Phase" time="06:00 - 18:00" rate="6.80" color="blue" />
-          <TariffCard tier="Peak / Surge" time="18:00 - 23:00" rate="11.20" color="orange" />
+          <TariffCard tier="Off-Peak (Base)" time="23:00 - 06:00" rate={slotTariffs.off_peak} onChange={(v: number) => setSlotTariffs(s => ({...s, off_peak: v}))} color="emerald" />
+          <TariffCard tier="Standard Phase" time="06:00 - 18:00" rate={slotTariffs.standard} onChange={(v: number) => setSlotTariffs(s => ({...s, standard: v}))} color="blue" />
+          <TariffCard tier="Peak / Surge" time="18:00 - 23:00" rate={slotTariffs.peak} onChange={(v: number) => setSlotTariffs(s => ({...s, peak: v}))} color="orange" />
         </div>
 
         <div className="mt-8 border-t pt-6">
@@ -770,14 +889,14 @@ function HealthMeter({ label, value, warning = false }: any) {
   );
 }
 
-function TariffCard({ tier, time, rate, color }: any) {
+function TariffCard({ tier, time, rate, onChange, color }: any) {
   const colorMap: any = { emerald: "border-emerald-200 bg-emerald-50 text-emerald-800", blue: "border-blue-200 bg-blue-50 text-blue-800", orange: "border-orange-200 bg-orange-50 text-orange-800" };
   return (
     <div className={`p-5 rounded-xl border ${colorMap[color]} shadow-sm`}>
       <p className="font-bold text-sm uppercase tracking-wider mb-1">{tier}</p>
       <p className="text-xs opacity-80 mb-4 flex items-center"><Clock className="w-3 h-3 mr-1"/> {time}</p>
       <label className="text-[10px] font-bold uppercase opacity-70">Rate per Unit (₹)</label>
-      <input type="number" defaultValue={rate} step="0.1" className="w-full mt-1 border-0 bg-white/50 rounded p-2 text-xl font-bold font-mono outline-none shadow-inner" />
+      <input type="number" value={rate ?? ""} onChange={e => onChange(parseFloat(e.target.value))} step="0.1" className="w-full mt-1 border-0 bg-white/50 rounded p-2 text-xl font-bold font-mono outline-none shadow-inner" />
     </div>
   );
 }

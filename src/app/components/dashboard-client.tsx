@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { initialDevices, puneTariffs } from "@/app/lib/mock-data";
+import { puneTariffs } from "@/app/lib/mock-data";
 import type { Device } from "@/app/lib/types";
 import { TARIFF_ALERT_THRESHOLD } from "@/app/lib/types";
 import { AnalysisCard } from "./analysis-card";
@@ -154,10 +154,14 @@ function DeviceCard({
 // ── Main Dashboard ──
 export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (active: boolean) => void } = {}) {
   const [agentModeOpen, setAgentModeOpen] = useState(false);
-  const [devices, setDevices] = useState<Device[]>(initialDevices);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [isDevicesLoading, setIsDevicesLoading] = useState(true);
   const [analysis, setAnalysis] = useState<AnalyzeConsumptionPatternsOutput | null>(null);
+  const customerIdRef = useRef<string | null>(null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [powerSavingMode, setPowerSavingMode] = useState(false);
+  const [liveTariff, setLiveTariff] = useState(8.50);
+  const [tariffLastUpdated, setTariffLastUpdated] = useState<string | null>(null);
 
   const { toast } = useToast();
 
@@ -181,6 +185,62 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
   const alertSentRef = useRef(false);
   const wsSendRef = useRef<((msg: string) => boolean) | null>(null);
 
+  // --- API DATA FETCHING ---
+  const fetchDevices = useCallback(async (customerId: string) => {
+    try {
+      const res = await fetch(`http://localhost:8080/customers/${customerId}/devices`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.length === 0) {
+          // Auto-seed if empty
+          await fetch(`http://localhost:8080/customers/${customerId}/devices/seed`, { method: "POST" });
+          const retryRes = await fetch(`http://localhost:8080/customers/${customerId}/devices`);
+          if (retryRes.ok) {
+            const retryData = await retryRes.json();
+            setDevices(retryData.map((d: any) => ({ ...d, id: d.device_id, icon: ALL_DEVICE_ICONS[d.icon_key] || Zap, powerConsumption: d.power_consumption_watts, usageHoursToday: d.usage_hours_today, expectedUsage: d.expected_usage })));
+          }
+        } else {
+          setDevices(data.map((d: any) => ({ ...d, id: d.device_id, icon: ALL_DEVICE_ICONS[d.icon_key] || Zap, powerConsumption: d.power_consumption_watts, usageHoursToday: d.usage_hours_today, expectedUsage: d.expected_usage })));
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch devices:", e);
+      toast({ variant: "destructive", title: "Error", description: "Could not load your devices." });
+    } finally {
+      setIsDevicesLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    const custId = localStorage.getItem("instinct_customer_id") || "UID-10294";
+    customerIdRef.current = custId;
+    fetchDevices(custId);
+    
+    // Fetch live tariff
+    const fetchTariff = async () => {
+      try {
+        const res = await fetch("http://localhost:8080/tariff");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.current_rate_INR) {
+            setLiveTariff(data.current_rate_INR);
+            if (data.timestamp) {
+              const d = new Date(data.timestamp);
+              setTariffLastUpdated(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " (" + d.toLocaleDateString([], { day: '2-digit', month: 'short' }) + ")");
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch tariff:", e);
+      }
+    };
+    fetchTariff();
+    // Poll tariff every 30 seconds
+    const tariffInterval = setInterval(fetchTariff, 30000);
+    return () => clearInterval(tariffInterval);
+  }, [fetchDevices]);
+
+  // Handle fluctuation (only updates specific fields visually, server holds reality)
   useEffect(() => {
     const interval = setInterval(() => {
       setDevices(prev => prev.map(d => {
@@ -192,31 +252,62 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
     return () => clearInterval(interval);
   }, []);
 
-  const handleDeviceToggle = useCallback((deviceId: string, status: boolean) => {
+  const handleDeviceToggle = useCallback(async (deviceId: string, status: boolean) => {
     alertSentRef.current = false;
-    setDevices(prev => prev.map(d =>
-      d.id === deviceId
-        ? { ...d, status: status ? "on" : "off", powerConsumption: status ? (initialDevices.find(x => x.id === deviceId)?.powerConsumption ?? d.powerConsumption) : 0 }
-        : d
-    ));
+    
+    // Optistic update
+    setDevices(prev => prev.map(d => {
+      if (d.id !== deviceId) return d;
+      const originalWatts = d.powerConsumption > 0 ? d.powerConsumption : 100; // rough fallback if no server original is handy
+      return { ...d, status: status ? "on" : "off", powerConsumption: status ? originalWatts : 0 };
+    }));
+
+    // Server update
+    try {
+       const cid = customerIdRef.current || "UID-10294";
+       await fetch(`http://localhost:8080/customers/${cid}/devices/${deviceId}`, {
+         method: "PUT",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ status: status ? "on" : "off" })
+       });
+    } catch(e) { console.error("Update failed", e); }
   }, []);
 
-  const handleRemoveDevice = (id: string) => {
+  const handleRemoveDevice = async (id: string) => {
+    // Optimistic
     setDevices(prev => prev.filter(d => d.id !== id));
     toast({ title: "Device removed", description: "Device has been removed from your home." });
+    
+    // Server
+    try {
+      const cid = customerIdRef.current || "UID-10294";
+      await fetch(`http://localhost:8080/customers/${cid}/devices/${id}`, { method: "DELETE" });
+    } catch(e) { console.error("Delete failed", e); }
   };
 
-  const handleAddDevice = () => {
+  const handleAddDevice = async () => {
     if (!newName.trim()) return;
-    const IconComp = (ALL_DEVICE_ICONS[newIconKey] || Zap) as LucideIcon;
     const w = parseInt(newWatts) || 100;
-    const newId = `custom-${Date.now()}`;
-    setDevices(prev => [...prev, {
-      id: newId, name: newName, icon: IconComp,
-      powerConsumption: w, usageHoursToday: 0, status: "off",
-    }] as Device[]);
-    setNewName(""); setNewWatts("100"); setAddOpen(false);
-    toast({ title: "Device added!", description: `${newName} has been added to your home.` });
+    
+    const cid = customerIdRef.current || "UID-10294";
+    try {
+      const res = await fetch(`http://localhost:8080/customers/${cid}/devices`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName, icon_key: newIconKey, power_consumption_watts: w, status: "off" })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const IconComp = (ALL_DEVICE_ICONS[newIconKey] || Zap) as LucideIcon;
+        setDevices(prev => [...prev, {
+          id: data.device_id, name: newName, icon: IconComp,
+          powerConsumption: 0, usageHoursToday: 0, status: "off",
+        }] as Device[]);
+        setNewName(""); setNewWatts("100"); setAddOpen(false);
+        toast({ title: "Device added!", description: `${newName} has been added to your home.` });
+      }
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to add device to Database." });
+    }
   };
 
   const handlePowerSavingToggle = (enabled: boolean) => {
@@ -235,12 +326,6 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
 
   const totalUsageKWh = useMemo(() =>
     devices.reduce((t, d) => t + (d.powerConsumption * d.usageHoursToday) / 1000, 0), [devices]);
-  const dynamicTariffRate = useMemo(() => {
-    const activeCount = devices.filter(d => d.status === "on").length;
-    const surcharge = Math.max(0, activeCount - 2) * 0.4;
-    const noise = (Math.random() - 0.5) * 0.2;
-    return Math.min(parseFloat((puneTariffs.high + surcharge + noise).toFixed(2)), 18.0);
-  }, [devices]);
 
   const activeDevices = useMemo(() => devices.filter(d => d.status === "on"), [devices]);
 
@@ -257,7 +342,7 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
 
   const predictedCost = predictedKWh * ((puneTariffs.high + puneTariffs.low) / 2);
   const estimatedCost = totalUsageKWh * ((puneTariffs.high + puneTariffs.low) / 2);
-  const isAlertLevel = dynamicTariffRate >= TARIFF_ALERT_THRESHOLD;
+  const isAlertLevel = liveTariff >= TARIFF_ALERT_THRESHOLD;
   const hour = new Date().getHours();
   const isHighTariff = hour >= 9 && hour < 21;
 
@@ -266,16 +351,16 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
 
 
   useEffect(() => {
-    if (dynamicTariffRate >= TARIFF_ALERT_THRESHOLD && !alertSentRef.current) {
+    if (liveTariff >= TARIFF_ALERT_THRESHOLD && !alertSentRef.current) {
       alertSentRef.current = true;
       const alertMsg = JSON.stringify({
-        event: "tariff_alert", tariff_rate: dynamicTariffRate, unit: "INR/kWh",
-        message: `Tariff is high at ₹${dynamicTariffRate.toFixed(2)}/kWh.`,
+        event: "tariff_alert", tariff_rate: liveTariff, unit: "INR/kWh",
+        message: `Tariff is high at ₹${liveTariff.toFixed(2)}/kWh.`,
         active_devices: activeDevices.map(d => ({ id: d.id, name: d.name, power_consumption_watts: d.powerConsumption })),
       });
       wsSendRef.current?.(alertMsg);
     }
-  }, [dynamicTariffRate, activeDevices]);
+  }, [liveTariff, activeDevices]);
 
   const runAnalysis = async () => {
     setIsLoadingAnalysis(true);
@@ -300,8 +385,8 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
   ];
 
   // Tariff classification for color coding
-  const tariffColor = isAlertLevel ? "text-red-600" : dynamicTariffRate > 8 ? "text-orange-600" : "text-emerald-600";
-  const tariffBg = isAlertLevel ? "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800" : dynamicTariffRate > 8 ? "bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700";
+  const tariffColor = isAlertLevel ? "text-red-600" : liveTariff > 8 ? "text-orange-600" : "text-emerald-600";
+  const tariffBg = isAlertLevel ? "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800" : liveTariff > 8 ? "bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700";
 
   return (
     <TooltipProvider>
@@ -339,12 +424,12 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
             </CardHeader>
             <CardContent className="px-4 pb-3">
               <p className={cn("text-xl font-black font-mono tabular-nums transition-colors duration-500", tariffColor)}>
-                ₹{dynamicTariffRate.toFixed(2)}<span className="text-xs font-normal text-slate-500">/kWh</span>
+                ₹{liveTariff.toFixed(2)}<span className="text-xs font-normal text-slate-500">/kWh</span>
               </p>
               <div className="flex items-center gap-2 mt-0.5">
                 {isAlertLevel && <Badge variant="destructive" className="text-[9px] h-4 animate-pulse">HIGH ALERT</Badge>}
-                <p className={cn("text-[10px] font-bold", isHighTariff ? "text-orange-500" : "text-emerald-600")}>
-                  {isHighTariff ? "Peak 9AM–9PM" : "Off-Peak"}
+                <p className={cn("text-[10px] font-bold text-slate-500")}>
+                  {tariffLastUpdated ? `Updated: ${tariffLastUpdated}` : isHighTariff ? "Peak 9AM–9PM" : "Off-Peak"}
                 </p>
               </div>
             </CardContent>
@@ -378,18 +463,22 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
 
           {/* Grid */}
           <CardContent className="p-3 sm:p-4">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
-              {devices.map(device => (
-                <DeviceCard
-                  key={device.id}
-                  device={device}
-                  onToggle={handleDeviceToggle}
-                  onRemove={handleRemoveDevice}
-                  isTopConsumer={device.id === topConsumerId}
-                  analysisResult={analysis?.analysisResults.find(r => r.deviceId === device.id)}
-                />
-              ))}
-            </div>
+            {isDevicesLoading ? (
+              <div className="py-12 flex justify-center"><div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
+                {devices.map(device => (
+                  <DeviceCard
+                    key={device.id}
+                    device={device}
+                    onToggle={handleDeviceToggle}
+                    onRemove={handleRemoveDevice}
+                    isTopConsumer={device.id === topConsumerId}
+                    analysisResult={analysis?.analysisResults.find(r => r.deviceId === device.id)}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* ── Controls Footer ── */}
             <div className="flex items-center justify-between flex-wrap gap-2 mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">

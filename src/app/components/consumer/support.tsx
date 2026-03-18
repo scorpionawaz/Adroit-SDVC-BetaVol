@@ -370,6 +370,10 @@ function AgentGreetingCard({ onConnect, messages, inputText, setInputText, isTyp
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       aiAudioContext.current = new AudioCtx({ sampleRate: AI_SAMPLE_RATE });
 
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Browser does not support media devices or is not in a secure context");
+      }
+
       mediaStream.current = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, sampleRate: USER_AUDIO_SAMPLE_RATE },
       });
@@ -415,6 +419,9 @@ function AgentGreetingCard({ onConnect, messages, inputText, setInputText, isTyp
     } catch (err) {
       console.error("startCall failed:", err);
       setCallStatus("idle");
+      if (err instanceof Error && (err.message.includes("mediaDevices") || err.message.includes("secure context"))) {
+        alert("Camera/Microphone access is not supported in this browser or context. Please ensure you are using HTTPS or localhost.");
+      }
     }
   }, [playAudioChunk, stopCall]);
 
@@ -746,6 +753,17 @@ export function ConsumerSupport() {
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [myTickets, setMyTickets] = useState<any[]>([]);
+
+  useEffect(() => {
+    const custId = localStorage.getItem("instinct_customer_id");
+    if (custId) {
+      fetch(`http://localhost:8080/customers/${custId}/support-tickets`)
+        .then(res => res.json())
+        .then(data => setMyTickets(data || []))
+        .catch(console.error);
+    }
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -868,47 +886,32 @@ export function ConsumerSupport() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium align-top py-4">#TKT-8821</TableCell>
-                    <TableCell className="align-top py-4">Meter Fault</TableCell>
-                    <TableCell className="align-top py-4">Feb 22, 2026</TableCell>
-                    <TableCell className="py-4">
-                      <div className="space-y-1">
-                        <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                          <Clock className="mr-1 h-3 w-3" /> In Progress
-                        </span>
-                        <p className="text-xs text-muted-foreground">Agent: Rajesh Kumar</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-
-                  <TableRow>
-                    <TableCell className="font-medium align-top py-4">#TKT-8104</TableCell>
-                    <TableCell className="align-top py-4">Billing Issue</TableCell>
-                    <TableCell className="align-top py-4">Jan 10, 2026</TableCell>
-                    <TableCell className="py-4">
-                      <div className="space-y-1">
-                        <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                          <CheckCircle2 className="mr-1 h-3 w-3" /> Resolved
-                        </span>
-                        <p className="text-xs text-muted-foreground">Agent: Sneha P.</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-
-                  <TableRow>
-                    <TableCell className="font-medium align-top py-4">#TKT-7542</TableCell>
-                    <TableCell className="align-top py-4">Power Outage</TableCell>
-                    <TableCell className="align-top py-4">Nov 05, 2025</TableCell>
-                    <TableCell className="py-4">
-                      <div className="space-y-1">
-                        <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                          <CheckCircle2 className="mr-1 h-3 w-3" /> Resolved
-                        </span>
-                        <p className="text-xs text-muted-foreground">Agent: Amit Desai</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  {myTickets.map((t) => (
+                    <TableRow key={t._id}>
+                      <TableCell className="font-medium align-top py-4">#INC-{t._id.slice(-6).toUpperCase()}</TableCell>
+                      <TableCell className="align-top py-4">{t.issue_category}</TableCell>
+                      <TableCell className="align-top py-4">{t.created_at ? t.created_at.split("T")[0] : "N/A"}</TableCell>
+                      <TableCell className="py-4">
+                        <div className="space-y-1">
+                          {t.status === "RESOLVED" ? (
+                             <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                               <CheckCircle2 className="mr-1 h-3 w-3" /> Resolved
+                             </span>
+                          ) : (
+                             <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                               <Clock className="mr-1 h-3 w-3" /> {t.status}
+                             </span>
+                          )}
+                          <p className="text-xs text-muted-foreground">Admin: {t.assigned_admin || "Unassigned"}</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {myTickets.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No tickets found.</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
