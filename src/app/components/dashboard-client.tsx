@@ -181,7 +181,7 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
 
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newWatts, setNewWatts] = useState("100");
+  const [newWatts, setNewWatts] = useState("");
   const [newIconKey, setNewIconKey] = useState("Zap");
 
   // No sticky order ref — device positions are fixed by insertion order only
@@ -219,12 +219,11 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
     const initializeDashboard = async () => {
       // Resolve stored id (auth UID or DB customer_id)
       const stored = localStorage.getItem("instinct_customer_id");
-      if (!stored) {
-        setIsDevicesLoading(false);
-        return;
-      }
-
       let resolved = stored;
+      if (!resolved) {
+        resolved = "1004"; // Default fallback
+        localStorage.setItem("instinct_customer_id", resolved);
+      }
       try {
         const exists = await fetch(`http://localhost:8080/customers/${encodeURIComponent(resolved)}`);
         if (exists.status === 404) {
@@ -404,17 +403,17 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
 
 
 
-  useEffect(() => {
-    if (liveTariff >= TARIFF_ALERT_THRESHOLD && !alertSentRef.current) {
-      alertSentRef.current = true;
-      const alertMsg = JSON.stringify({
-        event: "tariff_alert", tariff_rate: liveTariff, unit: "INR/kWh",
-        message: `Tariff is high at ₹${liveTariff.toFixed(2)}/kWh.`,
-        active_devices: activeDevices.map(d => ({ id: d.id, name: d.name, power_consumption_watts: d.powerConsumption })),
-      });
-      wsSendRef.current?.(alertMsg);
-    }
-  }, [liveTariff, activeDevices]);
+  // useEffect(() => {
+  //   if (liveTariff >= TARIFF_ALERT_THRESHOLD && !alertSentRef.current) {
+  //     alertSentRef.current = true;
+  //     const alertMsg = JSON.stringify({
+  //       event: "tariff_alert", tariff_rate: liveTariff, unit: "INR/kWh",
+  //       message: `Tariff is high at ₹${liveTariff.toFixed(2)}/kWh.`,
+  //       active_devices: activeDevices.map(d => ({ id: d.id, name: d.name, power_consumption_watts: d.powerConsumption })),
+  //     });
+  //     wsSendRef.current?.(alertMsg);
+  //   }
+  // }, [liveTariff, activeDevices]);
 
   const runAnalysis = async () => {
     setIsLoadingAnalysis(true);

@@ -45,6 +45,7 @@ export function MainClient() {
     localStorage.removeItem(STORAGE_KEY);
     setRole(null);
     setView("landing");
+    window.location.href = "/";
   };
 
   // Don't flash login screen while checking localStorage
