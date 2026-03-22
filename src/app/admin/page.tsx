@@ -915,7 +915,7 @@ function NodeCard({ name, cpu, ram, status, warning = false }: any) {
     </div>
   );
 }
-export function SystemMapOverlay({ region = "Pune Metropolitan Region", sectors = MOCK_PUNE_SECTORS }) {
+function SystemMapOverlay({ region = "Pune Metropolitan Region", sectors = MOCK_PUNE_SECTORS }) {
   const [hoveredSector, setHoveredSector] = useState<string | null>(null);
 
   const getStatusColors = (status: string) => {
