@@ -219,9 +219,8 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
     const initializeDashboard = async () => {
       // Resolve stored id (auth UID or DB customer_id)
       const stored = localStorage.getItem("instinct_customer_id");
-      let resolved = stored;
-      if (!resolved) {
-        resolved = "1004"; // Default fallback
+      let resolved: string = stored || "1004";
+      if (!stored) {
         localStorage.setItem("instinct_customer_id", resolved);
       }
       try {
