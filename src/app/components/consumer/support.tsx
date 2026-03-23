@@ -291,8 +291,8 @@ function ChatbotModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function AgentGreetingCard({ onConnect, messages, setMessages, inputText, setInputText, isTyping, setIsTyping, sendMessage, bottomRef }: { 
-  onConnect: () => void; 
+function AgentGreetingCard({ onConnect, messages, setMessages, inputText, setInputText, isTyping, setIsTyping, sendMessage, bottomRef }: {
+  onConnect: () => void;
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   inputText: string;
@@ -356,10 +356,10 @@ function AgentGreetingCard({ onConnect, messages, setMessages, inputText, setInp
 
       const now = ctx.currentTime;
       if (nextStartTime.current < now + 0.1) nextStartTime.current = now + 0.1;
-      
+
       source.start(nextStartTime.current);
       nextStartTime.current += buffer.duration;
-      
+
       pendingSources.current.push(source);
       setIsAiSpeaking(true);
       source.onended = () => {
@@ -489,7 +489,7 @@ function AgentGreetingCard({ onConnect, messages, setMessages, inputText, setInp
     if (phase !== "banner") return;
     setActiveMode(mode);
     setPhase("transitioning");
-    
+
     // Create & Resume context on user action as required by browsers
     if (!aiAudioContext.current) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -536,7 +536,7 @@ function AgentGreetingCard({ onConnect, messages, setMessages, inputText, setInp
               100% { transform: translateY(160px); opacity: 0; }
             }
           `}</style>
-          
+
           {[
             { text: "24/7 Support", delay: "0s", duration: "12s", left: "8%" },
             { text: "Fast Resolution", delay: "4s", duration: "14s", left: "20%" },
@@ -547,7 +547,7 @@ function AgentGreetingCard({ onConnect, messages, setMessages, inputText, setInp
             { text: "Voice Bot", delay: "7s", duration: "10s", left: "82%" },
             { text: "Instant Help", delay: "5s", duration: "12s", left: "92%" },
           ].map((item, i) => (
-            <div 
+            <div
               key={i}
               className="absolute text-white/70 font-medium text-xs whitespace-nowrap"
               style={{
@@ -572,7 +572,7 @@ function AgentGreetingCard({ onConnect, messages, setMessages, inputText, setInp
 
           {/* Two side-by-side buttons on the right */}
           <div className="flex flex-col items-center gap-4">
-            
+
 
             <div className="flex flex-row gap-3">
               <button
@@ -735,31 +735,31 @@ function AgentGreetingCard({ onConnect, messages, setMessages, inputText, setInp
           "flex flex-col items-center justify-center transition-all duration-500",
           messages.length > 0 ? "py-3 bg-slate-50 dark:bg-slate-800/40 border-b dark:border-slate-800" : "flex-1 p-6"
         )}>
-           <div className={cn(
-             "relative rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center transition-all duration-500",
-             messages.length > 0 ? "w-14 h-14" : "w-32 h-32"
-           )}>
-             <div className="absolute inset-1 rounded-full bg-emerald-100/50 dark:bg-emerald-900/30 flex items-center justify-center">
-               <Bot className={cn("transition-all duration-500", 
-                 messages.length > 0 ? "w-7 h-7" : "w-16 h-16",
-                 callStatus === "active" ? "text-emerald-500" : "text-slate-400"
-               )} />
-             </div>
-             {callStatus === "active" && (
-               <span className="absolute bottom-1 right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse" />
-             )}
-           </div>
-           
-           <div className={cn("text-center mt-2", messages.length > 0 ? "hidden sm:block" : "block")}>
-             <h2 className={cn("font-semibold text-emerald-700 dark:text-emerald-400 transition-all", 
-               messages.length > 0 ? "text-sm" : "text-xl"
-             )}>
-               BetaVolt Assistant
-             </h2>
-             <p className="text-xs text-slate-500 dark:text-slate-400">
-               {callStatus === "idle" ? "Disconnected" : callStatus === "connecting" ? "Connecting..." : "Live Support Session"}
-             </p>
-           </div>
+          <div className={cn(
+            "relative rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center transition-all duration-500",
+            messages.length > 0 ? "w-14 h-14" : "w-32 h-32"
+          )}>
+            <div className="absolute inset-1 rounded-full bg-emerald-100/50 dark:bg-emerald-900/30 flex items-center justify-center">
+              <Bot className={cn("transition-all duration-500",
+                messages.length > 0 ? "w-7 h-7" : "w-16 h-16",
+                callStatus === "active" ? "text-emerald-500" : "text-slate-400"
+              )} />
+            </div>
+            {callStatus === "active" && (
+              <span className="absolute bottom-1 right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse" />
+            )}
+          </div>
+
+          <div className={cn("text-center mt-2", messages.length > 0 ? "hidden sm:block" : "block")}>
+            <h2 className={cn("font-semibold text-emerald-700 dark:text-emerald-400 transition-all",
+              messages.length > 0 ? "text-sm" : "text-xl"
+            )}>
+              BetaVolt Assistant
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {callStatus === "idle" ? "Disconnected" : callStatus === "connecting" ? "Connecting..." : "Live Support Session"}
+            </p>
+          </div>
         </div>
 
         {/* Message List */}
@@ -778,8 +778,8 @@ function AgentGreetingCard({ onConnect, messages, setMessages, inputText, setInp
               <div className={cn("flex flex-col gap-1 max-w-[80%]", msg.role === "user" && "items-end")}>
                 <div className={cn(
                   "px-3 py-2 rounded-2xl text-[13px] leading-relaxed shadow-sm border",
-                  msg.role === "agent" 
-                    ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-sm border-slate-100 dark:border-slate-700" 
+                  msg.role === "agent"
+                    ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-sm border-slate-100 dark:border-slate-700"
                     : "bg-emerald-500 text-white rounded-tr-sm border-emerald-400"
                 )}>
                   {formatText(msg.text)}
@@ -812,16 +812,16 @@ function AgentGreetingCard({ onConnect, messages, setMessages, inputText, setInp
       <div className="p-4 flex flex-col items-center gap-6">
         {/* Input Pill */}
         <form
-          onSubmit={(e) => { 
-            e.preventDefault(); 
+          onSubmit={(e) => {
+            e.preventDefault();
             const text = inputText.trim();
             if (!text) return;
-            
+
             // Send via WS if open
             if (webSocket.current?.readyState === WebSocket.OPEN) {
               webSocket.current.send(JSON.stringify({ type: "text", data: text }));
             }
-            
+
             sendMessage(text);
           }}
           className="w-full relative flex items-center"
@@ -880,7 +880,7 @@ export function ConsumerSupport() {
   const [myTickets, setMyTickets] = useState<any[]>([]);
   const [expandedTickets, setExpandedTickets] = useState<string[]>([]);
   const toggleExpand = (id: string) => {
-    setExpandedTickets(prev => 
+    setExpandedTickets(prev =>
       prev.includes(id) ? prev.filter(tid => tid !== id) : [...prev, id]
     );
   };
@@ -926,7 +926,7 @@ export function ConsumerSupport() {
           <div className="space-y-1">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <h1 className="text-3xl font-bold tracking-tight">Support &amp; Complaints</h1>
-              
+
               {/* Notice for Customer ID 1004 */}
               <div className="inline-flex bg-emerald-600/10 dark:bg-emerald-400/10 border border-emerald-600/20 dark:border-emerald-400/20 rounded-full px-4 py-1.5 items-center gap-2.5 animate-in fade-in slide-in-from-left duration-700">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -941,7 +941,7 @@ export function ConsumerSupport() {
 
         {/* Agent Greeting Card */}
         <AgentGreetingCard
-          onConnect={() => {}}
+          onConnect={() => { }}
           messages={messages}
           setMessages={setMessages}
           inputText={inputText}
@@ -1022,7 +1022,7 @@ export function ConsumerSupport() {
                           {t.description || "No description provided."}
                         </div>
                         {t.description && t.description.length > 80 && (
-                          <button 
+                          <button
                             onClick={() => toggleExpand(t._id)}
                             className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 mt-2 flex items-center gap-1 transition-all"
                           >
@@ -1037,13 +1037,13 @@ export function ConsumerSupport() {
                       <TableCell className="py-5 align-top">
                         <div className="space-y-1.5">
                           {t.status === "RESOLVED" ? (
-                             <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50">
-                               <CheckCircle2 className="mr-1 h-3 w-3" /> Resolved
-                             </span>
+                            <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50">
+                              <CheckCircle2 className="mr-1 h-3 w-3" /> Resolved
+                            </span>
                           ) : (
-                             <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50">
-                               <Clock className="mr-1 h-3 w-3" /> {t.status}
-                             </span>
+                            <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50">
+                              <Clock className="mr-1 h-3 w-3" /> {t.status}
+                            </span>
                           )}
                           <p className="text-xs text-muted-foreground">Admin: {t.assigned_admin || "Unassigned"}</p>
                         </div>

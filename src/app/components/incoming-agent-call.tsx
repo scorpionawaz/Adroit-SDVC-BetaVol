@@ -16,9 +16,9 @@ export function IncomingAgentCall({ liveTariff, onAccept, onReject }: IncomingAg
   useEffect(() => {
     console.log("[IncomingAgentCall] Checking condition. liveTariff =", liveTariff);
     
-    // Only trigger if tariff is high (threshold > 25)
-    if (liveTariff <= 25) {
-      console.log("[IncomingAgentCall] liveTariff <= 25, aborting show.");
+    // Only trigger if tariff is high (threshold > 20)
+    if (liveTariff <= 20) {
+      console.log("[IncomingAgentCall] liveTariff <= 20, aborting show.");
       return;
     }
 
@@ -69,56 +69,134 @@ export function IncomingAgentCall({ liveTariff, onAccept, onReject }: IncomingAg
     onReject();
   };
 
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx = new Ctx();
+
+    const playTone = () => {
+      if (ctx.state === "closed") return;
+      
+      // Approximate iPhone "Marimba" style percussive ringtone
+      const notes = [
+        659.25, // E5
+        587.33, // D5
+        440.00, // A4
+        392.00, // G4
+        329.63, // E4
+        440.00, // A4
+        587.33, // D5
+        392.00, // G4
+        659.25, // E5
+      ];
+
+      const now = ctx.currentTime;
+      
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        // Using sine and a sharp decay for that bell/marimba feel
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        
+        // Attack & percussive decay envelope
+        const startTime = now + i * 0.15;
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.6, startTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.14);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.start(startTime);
+        osc.stop(startTime + 0.15);
+      });
+    };
+
+    // Play immediately, then loop every 3 seconds (1.35s play, 1.65s pause)
+    playTone();
+    const interval = setInterval(playTone, 3000);
+
+    return () => {
+      clearInterval(interval);
+      ctx.close().catch(console.error);
+    };
+  }, [isVisible]);
+
   if (!isVisible) return null;
 
   return (
-    <div className="fixed top-6 right-6 z-[99999] animate-in slide-in-from-top-4 fade-in zoom-in-95 duration-300">
-      <div className="w-[340px] bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-4 flex flex-col gap-4 text-white relative overflow-hidden">
-        {/* Animated background glow */}
-        <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/20 blur-3xl rounded-full pointer-events-none" />
+    <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center p-6 pointer-events-auto">
+      {/* Backdrop (Light mode aware) */}
+      <div className="absolute inset-0 bg-slate-900/90 dark:bg-[#0a0f1a]/95 backdrop-blur-md transition-opacity duration-700" />
+
+      {/* Content */}
+      <div className="relative flex flex-col items-center justify-center gap-6 z-10 w-full h-full animate-in fade-in zoom-in-95 duration-500">
         
-        <div className="flex gap-3 items-start relative z-10">
-          <div className="relative">
-            <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse">
-              <Bot className="w-6 h-6 text-white" />
-            </div>
-            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-slate-900 rounded-full" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-bold text-base tracking-wide flex items-center gap-1.5">
-              BetaVolt Agent
-              <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full uppercase font-bold tracking-wider animate-pulse border border-emerald-500/30">
-                Calling
-              </span>
-            </h3>
-            <div className="text-xs text-slate-300 mt-1.5 flex flex-col gap-1 leading-relaxed bg-slate-800/50 p-2 rounded-lg border border-slate-800">
-              <span className="flex items-start gap-1.5 text-amber-300 font-medium">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                High tariff detected: ₹{liveTariff.toFixed(2)}/unit
-              </span>
-              <span className="text-slate-400 ml-5">
-                I have suggestions to optimize devices and save electricity.
-              </span>
+        {/* The expanding circle / Avatar area */}
+        <div
+          className="relative flex items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_infinite]"
+          style={{
+            width: 220,
+            height: 220,
+            boxShadow: `0 0 50px 10px rgba(52,211,153,0.35)`,
+            transition: "box-shadow 90ms ease-out",
+          }}
+        >
+          {/* Orbit rings */}
+          <span className="absolute rounded-full border border-emerald-400/50 pointer-events-none" style={{ width: 290, height: 290, animation: "incomingAgentPing 2.0s cubic-bezier(0,0,0.2,1) infinite" }} />
+          <span className="absolute rounded-full border border-emerald-400/30 pointer-events-none" style={{ width: 370, height: 370, animation: "incomingAgentPing 2.7s cubic-bezier(0,0,0.2,1) infinite", animationDelay: "0.35s" }} />
+          <span className="absolute rounded-full border border-emerald-400/20 pointer-events-none" style={{ width: 460, height: 460, animation: "incomingAgentPing 3.4s cubic-bezier(0,0,0.2,1) infinite", animationDelay: "0.7s" }} />
+
+          {/* Inner face */}
+          <div className="flex flex-col items-center gap-2 z-10">
+            <div className="text-white drop-shadow flex items-center justify-center text-6xl">
+              🤖
             </div>
           </div>
         </div>
 
-        <div className="flex gap-3 mt-1 relative z-10">
-          <Button 
-            variant="destructive" 
-            className="flex-1 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 shadow-none h-11 transition-all"
+        {/* Label */}
+        <div className="flex flex-col items-center gap-2 mt-10">
+          <h2 className="text-white text-3xl font-bold tracking-wide animate-[pulse_1.5s_cubic-bezier(0.4,0,0.6,1)_infinite]">
+            BetaVolt Agent Calling...
+          </h2>
+          <div className="flex items-center gap-2 mt-2 px-4 py-2 bg-red-500/20 text-red-100 rounded-lg border border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+            <AlertTriangle className="w-5 h-5 text-red-400" />
+            <span className="font-semibold text-base">High Grid Tariff Alert: ₹{liveTariff.toFixed(2)}/unit</span>
+          </div>
+          <p className="text-slate-300 font-medium mt-2 text-lg">Accept call to optimize your appliances and reduce the bill.</p>
+        </div>
+
+        {/* Controls */}
+        <div className="mt-12 flex items-center gap-12">
+          <button
             onClick={handleReject}
+            className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 border-none cursor-pointer flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.4)] hover:shadow-[0_0_40px_rgba(239,68,68,0.6)] hover:scale-110 transition-all duration-300"
+            title="Decline"
           >
-            <X className="w-4 h-4 mr-2" /> Decline
-          </Button>
-          <Button 
-            className="flex-[1.5] rounded-xl bg-emerald-500 hover:bg-emerald-600 border-none shadow-[0_0_15px_rgba(16,185,129,0.4)] hover:shadow-[0_0_20px_rgba(16,185,129,0.6)] text-white h-11 transition-all hover:-translate-y-0.5 font-bold"
+            <X className="w-8 h-8 text-white" strokeWidth={3} />
+          </button>
+
+          <button
             onClick={handleAccept}
+            className="w-20 h-20 rounded-full bg-emerald-500 hover:bg-emerald-600 border-none cursor-pointer flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:shadow-[0_0_50px_rgba(16,185,129,0.8)] hover:scale-110 transition-all duration-300 animate-[bounce_2s_infinite]"
+            title="Accept"
           >
-            <Phone className="w-4 h-4 mr-2 fill-current" /> Accept
-          </Button>
+            <Phone className="w-8 h-8 text-white fill-current" />
+          </button>
         </div>
       </div>
+      
+      <style>{`
+        @keyframes incomingAgentPing {
+          0% { transform: scale(0.8); opacity: 0; }
+          5% { opacity: 1; }
+          100% { transform: scale(1.4); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }

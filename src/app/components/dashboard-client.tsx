@@ -9,6 +9,7 @@ import { analyzeConsumptionPatterns, type AnalyzeConsumptionPatternsOutput } fro
 import { useToast } from "@/hooks/use-toast";
 import { ChatbotWidget } from "@/components/chatbot-widget";
 import { AgentMode } from "@/components/agent-mode";
+import { IncomingAgentCall } from "./incoming-agent-call";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -50,41 +51,41 @@ function DeviceCard({
   const tier = !isOn ? "off" : watts > 1000 ? "high" : watts > 200 ? "medium" : "low";
 
   const tierConfig: Record<string, { borderColor: string; iconBg: string; textMain: string; textMuted: string; cardBg: string; label: string; badgeVariant: "destructive" | "secondary" | "default" | "outline" }> = {
-    off: { 
-      borderColor: "border-slate-200 dark:border-slate-800", 
-      iconBg: "bg-slate-100 dark:bg-slate-900", 
+    off: {
+      borderColor: "border-slate-200 dark:border-slate-800",
+      iconBg: "bg-slate-100 dark:bg-slate-900",
       cardBg: "bg-slate-50 dark:bg-slate-900/50",
       textMain: "text-slate-400 dark:text-slate-600",
       textMuted: "text-slate-400 dark:text-slate-700",
-      label: "Off", 
-      badgeVariant: "secondary" 
+      label: "Off",
+      badgeVariant: "secondary"
     },
-    low: { 
-      borderColor: "border-emerald-600", 
-      iconBg: "bg-emerald-500/20", 
+    low: {
+      borderColor: "border-emerald-600",
+      iconBg: "bg-emerald-500/20",
       cardBg: "bg-emerald-600 dark:bg-emerald-700",
       textMain: "text-white",
       textMuted: "text-emerald-50",
-      label: "Low", 
-      badgeVariant: "default" 
+      label: "Low",
+      badgeVariant: "default"
     },
-    medium: { 
-      borderColor: "border-violet-600", 
-      iconBg: "bg-violet-500/20", 
+    medium: {
+      borderColor: "border-violet-600",
+      iconBg: "bg-violet-500/20",
       cardBg: "bg-violet-600 dark:bg-violet-700",
       textMain: "text-white",
       textMuted: "text-violet-50",
-      label: "Medium", 
-      badgeVariant: "outline" 
+      label: "Medium",
+      badgeVariant: "outline"
     },
-    high: { 
-      borderColor: "border-red-600", 
-      iconBg: "bg-red-500/20", 
+    high: {
+      borderColor: "border-red-600",
+      iconBg: "bg-red-500/20",
       cardBg: "bg-red-600 dark:bg-red-700",
       textMain: "text-white",
       textMuted: "text-red-50",
-      label: "High", 
-      badgeVariant: "destructive" 
+      label: "High",
+      badgeVariant: "destructive"
     },
   };
   const s = tierConfig[tier];
@@ -169,7 +170,16 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
 
   const { toast } = useToast();
 
-  const handleAgentModeOpen = useCallback(() => {
+  const [agentCallReason, setAgentCallReason] = useState<string>("normal");
+  const [forceOpenChat, setForceOpenChat] = useState<boolean>(false);
+
+  const handleAcceptIncomingCall = useCallback(() => {
+    setAgentCallReason("high_tarrif");
+    setForceOpenChat(true);
+  }, []);
+
+  const handleAgentModeOpen = useCallback((reason?: any) => {
+    setAgentCallReason(typeof reason === "string" ? reason : "normal");
     setAgentModeOpen(true);
     onAgentModeChange?.(true);
   }, [onAgentModeChange]);
@@ -248,7 +258,7 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
           setCustomerType(cData.customer_type || "postpaid");
           setWalletBalance(cData.wallet_balance ?? null);
         }
-        
+
         // If solar, fetch solar records too
         const sRes = await fetch(`https://betavolt-978156456889.asia-south1.run.app/customers/${resolved}/solar`);
         if (sRes.ok) {
@@ -282,7 +292,7 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
     };
 
     fetchTariff();
-    const tariffInterval = setInterval(fetchTariff, 30000);
+    const tariffInterval = setInterval(fetchTariff, 10000);
     return () => clearInterval(tariffInterval);
   }, [fetchDevices]);
 
@@ -300,7 +310,7 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
 
   const handleDeviceToggle = useCallback(async (deviceId: string, status: boolean) => {
     alertSentRef.current = false;
-    
+
     // Optistic update
     setDevices(prev => prev.map(d => {
       if (d.id !== deviceId) return d;
@@ -310,33 +320,33 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
 
     // Server update
     try {
-       const cid = customerIdRef.current;
-       if (!cid) throw new Error("No customer id available");
-       await fetch(`https://betavolt-978156456889.asia-south1.run.app/customers/${cid}/devices/${deviceId}`, {
-         method: "PUT",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({ status: status ? "on" : "off" })
-       });
-    } catch(e) { console.error("Update failed", e); }
+      const cid = customerIdRef.current;
+      if (!cid) throw new Error("No customer id available");
+      await fetch(`https://betavolt-978156456889.asia-south1.run.app/customers/${cid}/devices/${deviceId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: status ? "on" : "off" })
+      });
+    } catch (e) { console.error("Update failed", e); }
   }, []);
 
   const handleRemoveDevice = async (id: string) => {
     // Optimistic
     setDevices(prev => prev.filter(d => d.id !== id));
     toast({ title: "Device removed", description: "Device has been removed from your home." });
-    
+
     // Server
     try {
       const cid = customerIdRef.current;
       if (!cid) throw new Error("No customer id available");
       await fetch(`https://betavolt-978156456889.asia-south1.run.app/customers/${cid}/devices/${id}`, { method: "DELETE" });
-    } catch(e) { console.error("Delete failed", e); }
+    } catch (e) { console.error("Delete failed", e); }
   };
 
   const handleAddDevice = async () => {
     if (!newName.trim()) return;
     const w = parseInt(newWatts) || 100;
-    
+
     const cid = customerIdRef.current;
     if (!cid) {
       toast({ variant: "destructive", title: "Error", description: "No customer id available." });
@@ -455,11 +465,10 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Home Monitor</h2>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${
-              customerType === "prepaid" ? "bg-emerald-500 text-white" :
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${customerType === "prepaid" ? "bg-emerald-500 text-white" :
               customerType === "solar" ? "bg-amber-500 text-white" :
-              "bg-blue-500 text-white"
-            }`}>
+                "b  g-blue-500 text-white"
+              }`}>
               {customerType} Active
             </span>
           </div>
@@ -471,7 +480,7 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
 
         {/* ── ROW 1: Stat Cards ── */}
         <div className={cn("grid gap-3", customerType === "solar" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-3")}>
-          
+
           {/* Usage / Import */}
           <Card className="shadow-[0_20px_40px_-15px_rgba(0,0,0,0.2)] dark:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)] transition-shadow duration-300 border-slate-200 dark:border-slate-700 dark:bg-slate-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-4">
@@ -674,8 +683,17 @@ export function DashboardClient({ onAgentModeChange }: { onAgentModeChange?: (ac
         {/* ── ROW 4: AI Analysis ── */}
         <AnalysisCard analysis={analysis} isLoading={isLoadingAnalysis} onRunAnalysis={runAnalysis} />
 
+        <IncomingAgentCall 
+          liveTariff={liveTariff} 
+          onAccept={handleAcceptIncomingCall}
+          onReject={() => {}} 
+        />
+
         <ChatbotWidget
           isAgentModeOpen={agentModeOpen}
+          callReason={agentCallReason}
+          forceOpenChat={forceOpenChat}
+          onChatOpened={() => setForceOpenChat(false)}
           onCloseAgentMode={handleAgentModeClose}
           onRegisterWSSend={(fn) => { wsSendRef.current = fn; }}
           onDeviceSignal={(deviceId, action) => {

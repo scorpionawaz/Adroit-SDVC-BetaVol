@@ -57,7 +57,7 @@ export default function IntellismartMasterDashboard() {
       .then(res => res.json())
       .then(data => setSlotTariffs({ off_peak: data.off_peak, standard: data.standard, peak: data.peak }))
       .catch(console.error);
-      
+
     // load support tickets for admin
     fetch("https://betavolt-978156456889.asia-south1.run.app/support-tickets")
       .then(res => res.json())
@@ -167,7 +167,7 @@ export default function IntellismartMasterDashboard() {
 
   const renderConsumerManagement = () => (
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
-      
+
       {/* Search Bar */}
       <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
         <form onSubmit={async (e) => {
@@ -179,73 +179,73 @@ export default function IntellismartMasterDashboard() {
             const data = await res.json();
             console.log("Search Result:", data);
             if (data) {
-                // Calculate live usage from devices
-                let totalUsageWatts = 0;
-                if (data.devices) {
-                    data.devices.forEach((d: any) => {
-                        if (d.status === "on") totalUsageWatts += d.power_consumption_watts;
-                    });
-                }
-                const liveUsageKW = (totalUsageWatts / 1000).toFixed(2);
-                
-                // Map Bills
-                const mappedBills = (data.bills || []).map((b: any) => ({
-                    month: b.month,
-                    type: "Monthly Bill",
-                    dueDate: b.due_date ? b.due_date.split("T")[0] : "N/A",
-                    amount: b.amount,
-                    status: b.status
-                }));
+              // Calculate live usage from devices
+              let totalUsageWatts = 0;
+              if (data.devices) {
+                data.devices.forEach((d: any) => {
+                  if (d.status === "on") totalUsageWatts += d.power_consumption_watts;
+                });
+              }
+              const liveUsageKW = (totalUsageWatts / 1000).toFixed(2);
 
-                const unpaidBills = (data.bills || []).filter((b: any) => b.status === "Unpaid" || b.status === "Overdue");
-                let totalOutstanding = 0;
-                unpaidBills.forEach((b: any) => {
-                    const val = parseFloat(b.amount.replace('₹', '').replace(',', ''));
-                    totalOutstanding += val;
-                });
-                
-                // Map Support Tickets -> Complaints array
-                const mappedComplaints = (data.support_tickets || []).map((t: any) => ({
-                    id: t._id.slice(-6).toUpperCase(), 
-                    date: t.created_at ? t.created_at.split("T")[0] : "N/A",
-                    issue: t.issue_category,
-                    status: t.status === "RESOLVED" ? "Resolved" : "Open",
-                    priority: t.priority
-                }));
-                
-                setConsumerData({
-                  id: data.customer_id, 
-                  meterId: "MTR-SYNCED",
-                  name: data.full_name, 
-                  phone: data.contact?.phone || "N/A", 
-                  address: data.address || "N/A", 
-                  type: data.role === "normal_user" ? "Standard User" : data.role, 
-                  status: "Active",
-                  connectionDate: "N/A",
-                  
-                  // Usage & Telemetry
-                  liveUsage: `${liveUsageKW} kW`, 
-                  dailyAvg: "N/A kWh", 
-                  dailyCost: "N/A",
-                  monthlyTotal: "N/A kWh", 
-                  predictedMonthly: "N/A kWh", 
-                  
-                  // Financials
-                  prepaidBalance: `₹ ${data.wallet_balance || 0}`, 
-                  outstandingDues: `₹ ${totalOutstanding.toLocaleString('en-IN')}`,
-                  walletStatus: data.wallet_balance < 500 ? "Low Balance" : "Healthy",
-                  
-                  // Tables Data
-                  pendingBills: mappedBills,
-                  complaints: mappedComplaints,
-                  
-                  // Agent & Infrastructure
-                  agentStatus: true,
-                  agentMode: "Semi-Automatic"
-                });
+              // Map Bills
+              const mappedBills = (data.bills || []).map((b: any) => ({
+                month: b.month,
+                type: "Monthly Bill",
+                dueDate: b.due_date ? b.due_date.split("T")[0] : "N/A",
+                amount: b.amount,
+                status: b.status
+              }));
+
+              const unpaidBills = (data.bills || []).filter((b: any) => b.status === "Unpaid" || b.status === "Overdue");
+              let totalOutstanding = 0;
+              unpaidBills.forEach((b: any) => {
+                const val = parseFloat(b.amount.replace('₹', '').replace(',', ''));
+                totalOutstanding += val;
+              });
+
+              // Map Support Tickets -> Complaints array
+              const mappedComplaints = (data.support_tickets || []).map((t: any) => ({
+                id: t._id.slice(-6).toUpperCase(),
+                date: t.created_at ? t.created_at.split("T")[0] : "N/A",
+                issue: t.issue_category,
+                status: t.status === "RESOLVED" ? "Resolved" : "Open",
+                priority: t.priority
+              }));
+
+              setConsumerData({
+                id: data.customer_id,
+                meterId: "MTR-SYNCED",
+                name: data.full_name,
+                phone: data.contact?.phone || "N/A",
+                address: data.address || "N/A",
+                type: data.role === "normal_user" ? "Standard User" : data.role,
+                status: "Active",
+                connectionDate: "N/A",
+
+                // Usage & Telemetry
+                liveUsage: `${liveUsageKW} kW`,
+                dailyAvg: "N/A kWh",
+                dailyCost: "N/A",
+                monthlyTotal: "N/A kWh",
+                predictedMonthly: "N/A kWh",
+
+                // Financials
+                prepaidBalance: `₹ ${data.wallet_balance || 0}`,
+                outstandingDues: `₹ ${totalOutstanding.toLocaleString('en-IN')}`,
+                walletStatus: data.wallet_balance < 500 ? "Low Balance" : "Healthy",
+
+                // Tables Data
+                pendingBills: mappedBills,
+                complaints: mappedComplaints,
+
+                // Agent & Infrastructure
+                agentStatus: true,
+                agentMode: "Semi-Automatic"
+              });
             } else {
-                alert("Customer not found.");
-                setConsumerData(null);
+              alert("Customer not found.");
+              setConsumerData(null);
             }
           } catch (e) {
             console.error(e);
@@ -256,12 +256,12 @@ export default function IntellismartMasterDashboard() {
         }} className="flex space-x-4">
           <div className="flex-1 relative">
             <Search className="absolute left-4 top-3.5 text-slate-400 w-5 h-5" />
-            <input 
-              type="text" 
-              placeholder="Enter Consumer ID, Name, or Phone..." 
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-sm shadow-inner" 
-              value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)} 
+            <input
+              type="text"
+              placeholder="Enter Consumer ID, Name, or Phone..."
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-sm shadow-inner"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <button type="submit" disabled={searchLoading} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-8 py-3 rounded-lg font-bold shadow-md transition flex items-center">
@@ -272,7 +272,7 @@ export default function IntellismartMasterDashboard() {
 
       {consumerData ? (
         <div className="space-y-6">
-          
+
           {/* Header Profile Card */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-start space-x-5">
@@ -305,10 +305,10 @@ export default function IntellismartMasterDashboard() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            
+
             {/* LEFT COLUMN: Telemetry & Complaints */}
             <div className="space-y-6">
-              
+
               {/* Telemetry & Usage */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
@@ -374,14 +374,14 @@ export default function IntellismartMasterDashboard() {
 
             {/* RIGHT COLUMN: Financials & Service Controls */}
             <div className="space-y-6">
-              
+
               {/* Financials & Pending Bills */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                   <h4 className="font-bold text-slate-800 flex items-center"><Receipt className="w-4 h-4 text-indigo-500 mr-2" /> Billing & Financials</h4>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${consumerData.walletStatus === 'Low Balance' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>{consumerData.walletStatus}</span>
                 </div>
-                
+
                 <div className="p-6 grid grid-cols-2 gap-4 border-b border-slate-100">
                   <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-lg">
                     <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider mb-1">Prepaid Wallet</p>
@@ -410,7 +410,7 @@ export default function IntellismartMasterDashboard() {
                     ))}
                   </ul>
                 </div>
-                
+
                 {/* Impose Penalty Sub-module */}
                 <div className="p-4 bg-slate-50 border-t border-slate-200">
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Impose Administrative Penalty</p>
@@ -429,12 +429,12 @@ export default function IntellismartMasterDashboard() {
 
               {/* Service & Infrastructure Controls */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
                   <h4 className="font-bold text-slate-800 flex items-center"><Settings className="w-4 h-4 text-slate-500 mr-2" /> Services & Infrastructure</h4>
                 </div>
-                
+
                 <div className="p-6 space-y-5">
-                  
+
                   {/* Agent Control */}
                   <div className="flex justify-between items-center p-4 border border-slate-200 rounded-lg bg-white shadow-sm">
                     <div>
@@ -564,15 +564,15 @@ export default function IntellismartMasterDashboard() {
         <div className="bg-emerald-900 text-white p-6 rounded-xl shadow-sm border border-emerald-800">
           <p className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-2">Total Collections (MTD)</p>
           <p className="text-4xl font-bold font-mono">{billingStats.total_mtd}</p>
-          <p className="text-xs text-emerald-300 mt-2 flex items-center"><TrendingUp className="w-3 h-3 mr-1"/> Real-time collection</p>
+          <p className="text-xs text-emerald-300 mt-2 flex items-center"><TrendingUp className="w-3 h-3 mr-1" /> Real-time collection</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-           <p className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Outstanding Amount</p>
-           <p className="text-3xl font-bold font-mono text-slate-800">{billingStats.pending_settlements}</p>
+          <p className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">Outstanding Amount</p>
+          <p className="text-3xl font-bold font-mono text-slate-800">{billingStats.pending_settlements}</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-red-200">
-           <p className="text-red-500 text-sm font-bold uppercase tracking-wider mb-2">Overdue Bills</p>
-           <p className="text-3xl font-bold font-mono text-red-600">{billingStats.failed_24h}</p>
+          <p className="text-red-500 text-sm font-bold uppercase tracking-wider mb-2">Overdue Bills</p>
+          <p className="text-3xl font-bold font-mono text-red-600">{billingStats.failed_24h}</p>
         </div>
       </div>
 
@@ -632,131 +632,132 @@ export default function IntellismartMasterDashboard() {
     };
 
     return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
+      <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
 
-      {/* Set Current Live Tariff */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex justify-between items-center mb-5">
-          <div>
-            <h3 className="text-xl font-bold text-slate-800">Set Current Live Tariff</h3>
-            <p className="text-sm text-slate-500">Override the real-time tariff rate pushed to all consumer agents instantly.</p>
-          </div>
-          {tariffStatus === "success" && (
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Tariff Updated Successfully
-            </span>
-          )}
-          {tariffStatus === "error" && (
-            <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-              <AlertCircle className="w-3.5 h-3.5" /> Failed — Check Connection
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Rate (₹ per kWh)</label>
-            <input
-              type="number"
-              step="0.1"
-              placeholder="e.g. 8.50"
-              value={tariffRate}
-              onChange={(e) => setTariffRate(e.target.value)}
-              className="w-full mt-1.5 border border-slate-300 rounded-lg p-2.5 text-sm outline-none font-mono focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Reason / Justification</label>
-            <input
-              type="text"
-              placeholder="e.g. Peak demand surge"
-              value={tariffReason}
-              onChange={(e) => setTariffReason(e.target.value)}
-              className="w-full mt-1.5 border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Authorized By</label>
-            <input
-              type="text"
-              placeholder="admin"
-              value={tariffUser}
-              onChange={(e) => setTariffUser(e.target.value)}
-              className="w-full mt-1.5 border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={handleSetTariff}
-            disabled={tariffStatus === "loading" || !tariffRate || !tariffReason}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-2.5 rounded-lg font-bold shadow transition flex items-center gap-2"
-          >
-            {tariffStatus === "loading" ? (
-              <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Pushing...</>
-            ) : (
-              <><Zap className="w-4 h-4" /> Set Tariff</>
+        {/* Set Current Live Tariff */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex justify-between items-center mb-5">
+            <div>
+              <h3 className="text-xl font-bold text-slate-800">Set Current Live Tariff</h3>
+              <p className="text-sm text-slate-500">Override the real-time tariff rate pushed to all consumer agents instantly.</p>
+            </div>
+            {tariffStatus === "success" && (
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Tariff Updated Successfully
+              </span>
             )}
-          </button>
-        </div>
-      </div>
-
-      {/* Existing TOU Pricing */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h3 className="text-xl font-bold text-slate-800">Global TOU (Time of Use) Pricing</h3>
-            <p className="text-sm text-slate-500">Configure real-time grid pricing parameters for automated agents.</p>
+            {tariffStatus === "error" && (
+              <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" /> Failed — Check Connection
+              </span>
+            )}
           </div>
-          <button 
-            onClick={async () => {
-              setSlotStatus("loading");
-              try {
-                const res = await fetch("https://betavolt-978156456889.asia-south1.run.app/tariff/slots", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ ...slotTariffs, user: "admin" })
-                });
-                if (!res.ok) throw new Error("Failed");
-                setSlotStatus("success");
-                setTimeout(() => setSlotStatus("idle"), 3000);
-              } catch (e) {
-                setSlotStatus("error");
-                setTimeout(() => setSlotStatus("idle"), 3000);
-              }
-            }}
-            disabled={slotStatus === "loading"}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow transition flex items-center gap-2 disabled:opacity-50"
-          >
-            {slotStatus === "loading" ? "Deploying..." : (slotStatus === "success" ? "Deployed ✓" : "Deploy to Grid")}
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <TariffCard tier="Off-Peak (Base)" time="23:00 - 06:00" rate={slotTariffs.off_peak} onChange={(v: number) => setSlotTariffs(s => ({...s, off_peak: v}))} color="emerald" />
-          <TariffCard tier="Standard Phase" time="06:00 - 18:00" rate={slotTariffs.standard} onChange={(v: number) => setSlotTariffs(s => ({...s, standard: v}))} color="blue" />
-          <TariffCard tier="Peak / Surge" time="18:00 - 23:00" rate={slotTariffs.peak} onChange={(v: number) => setSlotTariffs(s => ({...s, peak: v}))} color="orange" />
-        </div>
-
-        <div className="mt-8 border-t pt-6">
-          <h4 className="font-bold text-slate-800 mb-4 flex items-center"><Settings className="w-5 h-5 mr-2" /> Algorithmic Surge Multipliers</h4>
-          <div className="flex items-center space-x-4">
-             <div className="flex-1">
-               <label className="text-xs font-bold text-slate-600 uppercase">Grid Load &gt; 80% Cap</label>
-               <input type="number" defaultValue="1.5" step="0.1" className="w-full mt-1 border rounded p-2 text-sm outline-none font-mono" />
-             </div>
-             <div className="flex-1">
-               <label className="text-xs font-bold text-slate-600 uppercase">Critical Phase &gt; 95% Cap</label>
-               <input type="number" defaultValue="2.0" step="0.1" className="w-full mt-1 border rounded p-2 text-sm outline-none font-mono" />
-             </div>
-             <div className="flex-1">
-               <label className="text-xs font-bold text-slate-600 uppercase">AI Load Shedding Trigger</label>
-               <select className="w-full mt-1 border rounded p-2 text-sm outline-none"><option>Enable at 98%</option><option>Manual Only</option></select>
-             </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Rate (₹ per kWh)</label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="e.g. 8.50"
+                value={tariffRate}
+                onChange={(e) => setTariffRate(e.target.value)}
+                className="w-full mt-1.5 border border-slate-300 rounded-lg p-2.5 text-sm outline-none font-mono focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Reason / Justification</label>
+              <input
+                type="text"
+                placeholder="e.g. Peak demand surge"
+                value={tariffReason}
+                onChange={(e) => setTariffReason(e.target.value)}
+                className="w-full mt-1.5 border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Authorized By</label>
+              <input
+                type="text"
+                placeholder="admin"
+                value={tariffUser}
+                onChange={(e) => setTariffUser(e.target.value)}
+                className="w-full mt-1.5 border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={handleSetTariff}
+              disabled={tariffStatus === "loading" || !tariffRate || !tariffReason}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-2.5 rounded-lg font-bold shadow transition flex items-center gap-2"
+            >
+              {tariffStatus === "loading" ? (
+                <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Pushing...</>
+              ) : (
+                <><Zap className="w-4 h-4" /> Set Tariff</>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Existing TOU Pricing */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-xl font-bold text-slate-800">Global TOU (Time of Use) Pricing</h3>
+              <p className="text-sm text-slate-500">Configure real-time grid pricing parameters for automated agents.</p>
+            </div>
+            <button
+              onClick={async () => {
+                setSlotStatus("loading");
+                try {
+                  const res = await fetch("https://betavolt-978156456889.asia-south1.run.app/tariff/slots", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ...slotTariffs, user: "admin" })
+                  });
+                  if (!res.ok) throw new Error("Failed");
+                  setSlotStatus("success");
+                  setTimeout(() => setSlotStatus("idle"), 3000);
+                } catch (e) {
+                  setSlotStatus("error");
+                  setTimeout(() => setSlotStatus("idle"), 3000);
+                }
+              }}
+              disabled={slotStatus === "loading"}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow transition flex items-center gap-2 disabled:opacity-50"
+            >
+              {slotStatus === "loading" ? "Deploying..." : (slotStatus === "success" ? "Deployed ✓" : "Deploy to Grid")}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <TariffCard tier="Off-Peak (Base)" time="23:00 - 06:00" rate={slotTariffs.off_peak} onChange={(v: number) => setSlotTariffs(s => ({ ...s, off_peak: v }))} color="emerald" />
+            <TariffCard tier="Standard Phase" time="06:00 - 18:00" rate={slotTariffs.standard} onChange={(v: number) => setSlotTariffs(s => ({ ...s, standard: v }))} color="blue" />
+            <TariffCard tier="Peak / Surge" time="18:00 - 23:00" rate={slotTariffs.peak} onChange={(v: number) => setSlotTariffs(s => ({ ...s, peak: v }))} color="orange" />
+          </div>
+
+          <div className="mt-8 border-t pt-6">
+            <h4 className="font-bold text-slate-800 mb-4 flex items-center"><Settings className="w-5 h-5 mr-2" /> Algorithmic Surge Multipliers</h4>
+            <div className="flex items-center space-x-4">
+              <div className="flex-1">
+                <label className="text-xs font-bold text-slate-600 uppercase">Grid Load &gt; 80% Cap</label>
+                <input type="number" defaultValue="1.5" step="0.1" className="w-full mt-1 border rounded p-2 text-sm outline-none font-mono" />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-bold text-slate-600 uppercase">Critical Phase &gt; 95% Cap</label>
+                <input type="number" defaultValue="2.0" step="0.1" className="w-full mt-1 border rounded p-2 text-sm outline-none font-mono" />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-bold text-slate-600 uppercase">AI Load Shedding Trigger</label>
+                <select className="w-full mt-1 border rounded p-2 text-sm outline-none"><option>Enable at 98%</option><option>Manual Only</option></select>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  );};
+    );
+  };
 
   const renderAgent = () => (
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -774,9 +775,9 @@ export default function IntellismartMasterDashboard() {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-slate-800">Node Telemetry</h4></div>
           <div className="p-4 space-y-4">
-             <NodeCard name="Alpha Node (Pune Primary)" cpu="42%" ram="16GB/64GB" status="Online" />
-             <NodeCard name="Beta Node (Mumbai Replica)" cpu="28%" ram="12GB/64GB" status="Online" />
-             <NodeCard name="Gamma Node (Analytics)" cpu="88%" ram="60GB/64GB" status="High Load" warning />
+            <NodeCard name="Alpha Node (Pune Primary)" cpu="42%" ram="16GB/64GB" status="Online" />
+            <NodeCard name="Beta Node (Mumbai Replica)" cpu="28%" ram="12GB/64GB" status="Online" />
+            <NodeCard name="Gamma Node (Analytics)" cpu="88%" ram="60GB/64GB" status="High Load" warning />
           </div>
         </div>
 
@@ -835,7 +836,7 @@ export default function IntellismartMasterDashboard() {
             <div className="h-9 w-9 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold shadow text-sm">SA</div>
           </div>
         </header>
-        
+
         <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar bg-slate-100">
           {activeTab === "overview" && renderOverview()}
           {activeTab === "consumer-management" && renderConsumerManagement()}
@@ -869,7 +870,7 @@ function StatCard({ title, value, trend, positive, icon }: any) {
       </div>
       <p className="text-2xl font-bold text-slate-800 font-mono">{value}</p>
       <p className={`text-xs mt-2 font-medium flex items-center ${positive ? 'text-emerald-600' : 'text-red-500'}`}>
-        {positive ? <ArrowUpRight className="w-3 h-3 mr-1"/> : <ArrowDownRight className="w-3 h-3 mr-1"/>} {trend}
+        {positive ? <ArrowUpRight className="w-3 h-3 mr-1" /> : <ArrowDownRight className="w-3 h-3 mr-1" />} {trend}
       </p>
     </div>
   );
@@ -894,7 +895,7 @@ function TariffCard({ tier, time, rate, onChange, color }: any) {
   return (
     <div className={`p-5 rounded-xl border ${colorMap[color]} shadow-sm`}>
       <p className="font-bold text-sm uppercase tracking-wider mb-1">{tier}</p>
-      <p className="text-xs opacity-80 mb-4 flex items-center"><Clock className="w-3 h-3 mr-1"/> {time}</p>
+      <p className="text-xs opacity-80 mb-4 flex items-center"><Clock className="w-3 h-3 mr-1" /> {time}</p>
       <label className="text-[10px] font-bold uppercase opacity-70">Rate per Unit (₹)</label>
       <input type="number" value={rate ?? ""} onChange={e => onChange(parseFloat(e.target.value))} step="0.1" className="w-full mt-1 border-0 bg-white/50 rounded p-2 text-xl font-bold font-mono outline-none shadow-inner" />
     </div>
@@ -909,8 +910,8 @@ function NodeCard({ name, cpu, ram, status, warning = false }: any) {
         <div><p className="font-bold text-sm text-slate-800">{name}</p><p className="text-[10px] text-slate-500 uppercase font-bold mt-0.5">{status}</p></div>
       </div>
       <div className="flex space-x-6">
-        <div className="text-right"><p className="text-[10px] text-slate-500 uppercase font-bold flex items-center justify-end"><Cpu className="w-3 h-3 mr-1"/> CPU</p><p className="font-mono font-bold text-sm">{cpu}</p></div>
-        <div className="text-right"><p className="text-[10px] text-slate-500 uppercase font-bold flex items-center justify-end"><HardDrive className="w-3 h-3 mr-1"/> RAM</p><p className="font-mono font-bold text-sm">{ram}</p></div>
+        <div className="text-right"><p className="text-[10px] text-slate-500 uppercase font-bold flex items-center justify-end"><Cpu className="w-3 h-3 mr-1" /> CPU</p><p className="font-mono font-bold text-sm">{cpu}</p></div>
+        <div className="text-right"><p className="text-[10px] text-slate-500 uppercase font-bold flex items-center justify-end"><HardDrive className="w-3 h-3 mr-1" /> RAM</p><p className="font-mono font-bold text-sm">{ram}</p></div>
       </div>
     </div>
   );
@@ -932,7 +933,7 @@ function SystemMapOverlay({ region = "Pune Metropolitan Region", sectors = MOCK_
       <div className="flex justify-between items-center mb-4">
         <div>
           <h3 className="font-bold text-slate-800 flex items-center">
-            <MapPin className="w-5 h-5 mr-2 text-blue-500" /> 
+            <MapPin className="w-5 h-5 mr-2 text-blue-500" />
             Live Thermal Load Map: {region}
           </h3>
           <p className="text-xs text-slate-500 mt-1">Real-time sector consumption and grid strain visualization.</p>
@@ -946,17 +947,17 @@ function SystemMapOverlay({ region = "Pune Metropolitan Region", sectors = MOCK_
 
       {/* Map Container */}
       <div className="relative flex-1 bg-slate-900 rounded-lg overflow-hidden border border-slate-800 min-h-[400px]">
-        
+
         {/* Real Map Background (OpenStreetMap embedded & styled for dark mode) */}
         <div className="absolute inset-0 z-0 opacity-50">
-          <iframe 
-            width="100%" 
-            height="100%" 
-            frameBorder="0" 
-            scrolling="no" 
+          <iframe
+            width="100%"
+            height="100%"
+            frameBorder="0"
+            scrolling="no"
             src="https://www.openstreetmap.org/export/embed.html?bbox=73.65%2C18.40%2C74.05%2C18.65&layer=mapnik"
-            style={{ 
-              pointerEvents: 'none', 
+            style={{
+              pointerEvents: 'none',
               filter: 'grayscale(100%) invert(100%) contrast(150%) brightness(80%)',
               transform: 'scale(1.05)' // slightly scales to hide standard iframe borders
             }}
@@ -967,9 +968,9 @@ function SystemMapOverlay({ region = "Pune Metropolitan Region", sectors = MOCK_
         {sectors.map((sector) => {
           const colors = getStatusColors(sector.status);
           const isHovered = hoveredSector === sector.id;
-          
+
           return (
-            <div 
+            <div
               key={sector.id}
               className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 cursor-pointer"
               style={{ left: `${sector.x}%`, top: `${sector.y}%`, zIndex: isHovered ? 50 : 10 }}
@@ -977,11 +978,11 @@ function SystemMapOverlay({ region = "Pune Metropolitan Region", sectors = MOCK_
               onMouseLeave={() => setHoveredSector(null)}
             >
               {/* Thermal Glow / Heatmap Blob */}
-              <div 
+              <div
                 className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-all duration-500"
-                style={{ 
-                  width: `${sector.load * 1.5}px`, 
-                  height: `${sector.load * 1.5}px`, 
+                style={{
+                  width: `${sector.load * 1.5}px`,
+                  height: `${sector.load * 1.5}px`,
                   background: `radial-gradient(circle, ${colors.glow} 0%, transparent 70%)`,
                   opacity: isHovered ? 1 : 0.7
                 }}
@@ -990,7 +991,7 @@ function SystemMapOverlay({ region = "Pune Metropolitan Region", sectors = MOCK_
               {/* Map Marker */}
               <div className="relative flex flex-col items-center">
                 <div className={`w-4 h-4 rounded-full border-2 border-slate-900 shadow-md ${colors.dot} ${sector.status === 'critical' ? 'animate-pulse' : ''}`}></div>
-                
+
                 {/* Always show small label for critical, show full tooltip on hover */}
                 {sector.status === 'critical' && !isHovered && (
                   <span className="mt-1 text-[9px] font-bold text-red-400 bg-slate-900/80 px-1.5 py-0.5 rounded backdrop-blur-sm whitespace-nowrap">
@@ -1001,10 +1002,9 @@ function SystemMapOverlay({ region = "Pune Metropolitan Region", sectors = MOCK_
                 {/* Hover Tooltip */}
                 {isHovered && (
                   <div className="absolute bottom-full mb-2 w-48 bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden text-left pointer-events-none transform origin-bottom animate-in zoom-in-95 duration-200">
-                    <div className={`px-3 py-2 border-b flex justify-between items-center ${
-                      sector.status === 'critical' ? 'bg-red-50 border-red-100' : 
+                    <div className={`px-3 py-2 border-b flex justify-between items-center ${sector.status === 'critical' ? 'bg-red-50 border-red-100' :
                       sector.status === 'warning' ? 'bg-orange-50 border-orange-100' : 'bg-emerald-50 border-emerald-100'
-                    }`}>
+                      }`}>
                       <span className="font-bold text-xs text-slate-800 truncate">{sector.name}</span>
                       {sector.status === 'critical' && <AlertTriangle className="w-3 h-3 text-red-500" />}
                     </div>
@@ -1031,19 +1031,19 @@ function SystemMapOverlay({ region = "Pune Metropolitan Region", sectors = MOCK_
         {/* Legend / Info overlay on map */}
         <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none z-20">
           <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700 p-3 rounded-lg flex items-center space-x-4 pointer-events-auto shadow-lg">
-             <div>
-               <p className="text-[10px] text-slate-400 font-bold uppercase">Total City Load</p>
-               <p className="text-lg font-mono font-bold text-emerald-400">482.5 MW</p>
-             </div>
-             <div className="h-8 w-px bg-slate-700"></div>
-             <div>
-               <p className="text-[10px] text-slate-400 font-bold uppercase">Active Critical Nodes</p>
-               <p className="text-lg font-mono font-bold text-red-400 flex items-center">
-                 {sectors.filter(s => s.status === 'critical').length} <Activity className="w-4 h-4 ml-1 animate-pulse" />
-               </p>
-             </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase">Total City Load</p>
+              <p className="text-lg font-mono font-bold text-emerald-400">482.5 MW</p>
+            </div>
+            <div className="h-8 w-px bg-slate-700"></div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase">Active Critical Nodes</p>
+              <p className="text-lg font-mono font-bold text-red-400 flex items-center">
+                {sectors.filter(s => s.status === 'critical').length} <Activity className="w-4 h-4 ml-1 animate-pulse" />
+              </p>
+            </div>
           </div>
-          
+
           <div className="text-[10px] font-mono text-slate-400 bg-slate-900/80 backdrop-blur-md border border-slate-700 px-3 py-1.5 rounded shadow-lg">
             Live Sync: ACTIVE
           </div>

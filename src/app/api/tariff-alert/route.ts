@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import WebSocket from "ws";
-
+// no use this websocket is useless 
 const WS_URL = "wss://betavolt-978156456889.asia-south1.run.app/lovelocalai/";
 
 interface ActiveDevice {

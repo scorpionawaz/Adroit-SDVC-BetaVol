@@ -19,6 +19,9 @@ interface ChatbotWidgetProps {
   onDeviceSignal?: (deviceId: string, action: "turn_on" | "turn_off") => void;
   isAgentModeOpen?: boolean;
   onCloseAgentMode?: () => void;
+  callReason?: string;
+  forceOpenChat?: boolean;
+  onChatOpened?: () => void;
 }
 
 // ── Wave bars (react to audio level) ─────────────────────
@@ -40,10 +43,10 @@ function Ring({ size, delay, audioLevel }: { size: number; delay: number; audioL
     <span
       className="absolute rounded-full border border-emerald-400/40 pointer-events-none"
       style={{
-        width:  size * boost,
+        width: size * boost,
         height: size * boost,
-        top:    "50%",
-        left:   "50%",
+        top: "50%",
+        left: "50%",
         transform: "translate(-50%,-50%)",
         animation: `agentPing ${2 + delay}s cubic-bezier(0,0,0.2,1) infinite`,
         animationDelay: `${delay * 0.5}s`,
@@ -53,7 +56,7 @@ function Ring({ size, delay, audioLevel }: { size: number; delay: number; audioL
   );
 }
 
-export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpen, onCloseAgentMode }: ChatbotWidgetProps) {
+export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpen, onCloseAgentMode, callReason, forceOpenChat, onChatOpened }: ChatbotWidgetProps) {
   // --- UI STATE ---
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [view, setView] = useState<SupportView>("call");
@@ -246,7 +249,7 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
   // ------------------------------------------------------------------
   // LOGIC: Start Call
   // ------------------------------------------------------------------
-  const startCall = useCallback(async () => {
+  const startCall = useCallback(async (explicitReason?: any) => {
     try {
       setConnectionStatus("Calling...");
       playRingingTone();
@@ -270,7 +273,14 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
       aiAudioContext.current = new AudioCtx({ sampleRate: AI_SAMPLE_RATE });
 
       const customerId = localStorage.getItem("instinct_customer_id") || "cust-123";
-      webSocket.current = new WebSocket(`${WS_URL}?customer_id=${encodeURIComponent(customerId)}`);
+      
+      const requestedReason = typeof explicitReason === "string" ? explicitReason : callReason;
+      let wsUrl = `${WS_URL}?customer_id=${encodeURIComponent(customerId)}`;
+      if (requestedReason && requestedReason !== "normal") {
+        wsUrl += `&reason=${encodeURIComponent(requestedReason)}`;
+      }
+      
+      webSocket.current = new WebSocket(wsUrl);
 
       webSocket.current.onopen = () => {
         if (ringingInterval.current) clearInterval(ringingInterval.current);
@@ -327,9 +337,9 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
               if (prev.length > 0 && !prev[prev.length - 1].isUser) {
                 // Append to the existing AI message bubble
                 const updated = [...prev];
-                updated[updated.length - 1] = { 
-                  ...updated[updated.length - 1], 
-                  text: updated[updated.length - 1].text + msg.data 
+                updated[updated.length - 1] = {
+                  ...updated[updated.length - 1],
+                  text: updated[updated.length - 1].text + msg.data
                 };
                 return updated;
               }
@@ -342,9 +352,9 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
               if (prev.length > 0 && prev[prev.length - 1].isUser) {
                 // Append to the existing User message bubble
                 const updated = [...prev];
-                updated[updated.length - 1] = { 
-                  ...updated[updated.length - 1], 
-                  text: updated[updated.length - 1].text + " " + msg.data 
+                updated[updated.length - 1] = {
+                  ...updated[updated.length - 1],
+                  text: updated[updated.length - 1].text + " " + msg.data
                 };
                 return updated;
               }
@@ -382,8 +392,8 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
       }
       if (ringingInterval.current) clearInterval(ringingInterval.current);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sendVideoFrame, stopCall]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sendVideoFrame, stopCall, callReason]);
 
 
   // --- REGISTER WS SEND with parent ---
@@ -417,16 +427,23 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
 
 
   // Open the modal AND start the call — only on explicit user click
-  const openSupport = () => {
+  const openSupport = (reasonOrEvent?: any) => {
     setView("call");
     setIsChatOpen(true);
     setHasUnread(false);
-    startCall();
+    startCall(typeof reasonOrEvent === "string" ? reasonOrEvent : "normal");
   };
   const closeModal = () => {
     setIsChatOpen(false);
     stopCall();
   };
+
+  useEffect(() => {
+    if (forceOpenChat && !isChatOpen && !isAgentModeOpen) {
+      openSupport(callReason);
+      onChatOpened?.();
+    }
+  }, [forceOpenChat, isChatOpen, isAgentModeOpen, onChatOpened, callReason]);
 
   useEffect(() => {
     if (view === "call") callMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -445,7 +462,7 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
         stopCall();
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAgentModeOpen]);
 
   // Audio visualizer state for Agent Mode
@@ -474,7 +491,7 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
 
         {/* Content */}
         <div className="relative flex flex-col items-center justify-center gap-6 z-10 w-full h-full animate-in fade-in zoom-in-95 duration-500">
-          
+
           <video ref={videoRef} playsInline muted style={{ display: "none" }} />
           <canvas ref={canvasRef} style={{ display: "none" }} />
 
@@ -489,13 +506,13 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
             }}
           >
             {/* Orbit rings */}
-            <Ring size={290} delay={0}   audioLevel={visualAudio} />
+            <Ring size={290} delay={0} audioLevel={visualAudio} />
             <Ring size={370} delay={0.7} audioLevel={visualAudio} />
             <Ring size={460} delay={1.4} audioLevel={visualAudio} />
 
             {/* Inner face */}
             <div className="flex flex-col items-center gap-2 z-10">
-              <div 
+              <div
                 className="text-white drop-shadow flex items-center justify-center text-6xl"
                 style={{ transform: `scale(${1 + visualAudio * 0.12})`, transition: "transform 90ms ease-out" }}
               >
@@ -530,7 +547,7 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
               )}
             </div>
           </div>
-          
+
           {/* Controls */}
           <div className="mt-8 flex items-center gap-4">
             {connectionStatus === "Disconnected" || connectionStatus === "Error" || connectionStatus === "Failed" || connectionStatus === "Media Context Error" ? (
@@ -540,7 +557,7 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
                 title="Start Call"
               >
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                 </svg>
               </button>
             ) : (
@@ -566,7 +583,7 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
             Exit Agent Mode
           </button>
         </div>
-        
+
         <style>{`
           @keyframes agentPing {
             0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
@@ -594,9 +611,9 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
           )}
           {/* Microphone SVG */}
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-            <line x1="12" x2="12" y1="19" y2="22"/>
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" x2="12" y1="19" y2="22" />
           </svg>
         </button>
       )}
@@ -656,11 +673,10 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
                   {messages.map((msg, index) => (
                     <div
                       key={index}
-                      className={`px-3 py-2 rounded-xl text-[13px] max-w-[85%] shadow-sm ${
-                        msg.isUser
+                      className={`px-3 py-2 rounded-xl text-[13px] max-w-[85%] shadow-sm ${msg.isUser
                           ? "self-end bg-primary text-primary-foreground ml-4"
                           : "self-start bg-muted text-muted-foreground mr-4"
-                      }`}
+                        }`}
                     >
                       {msg.text}
                     </div>
@@ -695,7 +711,7 @@ export function ChatbotWidget({ onRegisterWSSend, onDeviceSignal, isAgentModeOpe
                         title="Start Call"
                       >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                         </svg>
                       </button>
                     ) : (
